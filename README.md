@@ -21,6 +21,11 @@ It gives you:
 * Markdown as the export format
 * A typography-first interface designed for focus
 
+## 🚀 Live Demo
+![App preview](./docs/preview.png)
+Try murmur instantly in your browser: [https://murmur-editor.netlify.app/](https://murmur-editor.netlify.app/)
+
+
 ## Features
 
 ### 📝 Manuscript Management
