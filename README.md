@@ -1,4 +1,5 @@
 # murmur
+[![codecov](https://codecov.io/gh/0plus1/murmur/graph/badge.svg?token=s3FA6doKFy)](https://codecov.io/gh/0plus1/murmur)
 
 **A local-first writing studio for long-form fiction.**
 
