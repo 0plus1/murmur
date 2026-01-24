@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { 
   PanelLeftClose, 
+  PanelRightClose,
   Save, 
   Download, 
   Settings, 
@@ -17,6 +18,7 @@ import {
   Trash2,
   Eye,
   Highlighter,
+  Code,
   Link2
 } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
@@ -91,11 +93,14 @@ function App() {
   const [lastSaved, setLastSaved] = useState(null);
   const [highlightEntities, setHighlightEntities] = useState(true);
   const [distractionFree, setDistractionFree] = useState(false);
+  const [showFrontmatter, setShowFrontmatter] = useState(false);
   
   // Stores
   const theme = useUIStore((state) => state.theme);
   const sidebarCollapsed = useUIStore((state) => state.sidebarCollapsed);
   const toggleSidebar = useUIStore((state) => state.toggleSidebar);
+  const rightPanelCollapsed = useUIStore((state) => state.rightPanelCollapsed);
+  const toggleRightPanel = useUIStore((state) => state.toggleRightPanel);
   const rightPanelTab = useUIStore((state) => state.rightPanelTab);
   const setRightPanelTab = useUIStore((state) => state.setRightPanelTab);
   const openCommandPalette = useUIStore((state) => state.openCommandPalette);
@@ -465,6 +470,23 @@ function App() {
                             {highlightEntities ? 'Disable' : 'Enable'} character/location highlighting
                           </TooltipContent>
                         </Tooltip>
+
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button 
+                              variant={showFrontmatter ? "secondary" : "ghost"}
+                              size="icon" 
+                              className="h-6 w-6"
+                              onClick={() => setShowFrontmatter(!showFrontmatter)}
+                              data-testid="frontmatter-toggle"
+                            >
+                              <Code className="h-3 w-3" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {showFrontmatter ? 'Hide' : 'Show'} YAML frontmatter
+                          </TooltipContent>
+                        </Tooltip>
                         
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -480,6 +502,23 @@ function App() {
                           </TooltipTrigger>
                           <TooltipContent>
                             {distractionFree ? 'Edit mode' : 'Distraction-free mode'}
+                          </TooltipContent>
+                        </Tooltip>
+
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button 
+                              variant={rightPanelCollapsed ? "secondary" : "ghost"}
+                              size="icon" 
+                              className="h-6 w-6"
+                              onClick={toggleRightPanel}
+                              data-testid="right-panel-toggle"
+                            >
+                              <PanelRightClose className={cn("h-3 w-3 transition-transform", rightPanelCollapsed && "rotate-180")} />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {rightPanelCollapsed ? 'Show' : 'Hide'} right panel
                           </TooltipContent>
                         </Tooltip>
                         
@@ -511,6 +550,7 @@ function App() {
                         isDark={theme === 'dark'}
                         highlightEntities={highlightEntities}
                         distractionFree={distractionFree}
+                        showFrontmatter={showFrontmatter}
                         onEntityClick={handleEntityClick}
                       />
                     </div>
@@ -527,65 +567,69 @@ function App() {
               </div>
             </ResizablePanel>
             
-            <ResizableHandle />
-            
-            {/* Right Panel */}
-            <ResizablePanel defaultSize={25} minSize={20} maxSize={35}>
-              <div className="h-full border-l flex flex-col">
-                <Tabs value={rightPanelTab} onValueChange={setRightPanelTab} className="flex-1 flex flex-col">
-                  <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-2">
-                    <TabsTrigger 
-                      value="backlinks"
-                      className="text-xs data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none"
-                    >
-                      <Link2 className="h-3 w-3 mr-1" />
-                      Backlinks
-                    </TabsTrigger>
-                    <TabsTrigger 
-                      value="bible"
-                      className="text-xs data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none"
-                    >
-                      <BookOpen className="h-3 w-3 mr-1" />
-                      Bible
-                    </TabsTrigger>
-                    <TabsTrigger 
-                      value="styleGuide"
-                      className="text-xs data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none"
-                      data-testid="right-panel-style-guide-tab"
-                    >
-                      <BookOpen className="h-3 w-3 mr-1" />
-                      Style Guide
-                    </TabsTrigger>
-                    <TabsTrigger 
-                      value="prompt"
-                      className="text-xs data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none"
-                    >
-                      <Wand2 className="h-3 w-3 mr-1" />
-                      Prompt
-                    </TabsTrigger>
-                  </TabsList>
-                  
-                  <TabsContent value="backlinks" className="flex-1 mt-0 p-0">
-                    <BacklinksPanel />
-                  </TabsContent>
-                  
-                  <TabsContent value="bible" className="flex-1 mt-0 p-0">
-                    <BiblePanel
-                      editorRef={editorRef}
-                      onRequestCreate={handleOpenFullCreateDialog}
-                    />
-                  </TabsContent>
-                  
-                  <TabsContent value="styleGuide" className="flex-1 mt-0 p-0">
-                    <StyleGuidePanel />
-                  </TabsContent>
-                  
-                  <TabsContent value="prompt" className="flex-1 mt-0 p-0">
-                    <PromptStudio />
-                  </TabsContent>
-                </Tabs>
-              </div>
-            </ResizablePanel>
+            {!rightPanelCollapsed && (
+              <>
+                <ResizableHandle />
+                
+                {/* Right Panel */}
+                <ResizablePanel defaultSize={25} minSize={20} maxSize={35}>
+                  <div className="h-full border-l flex flex-col">
+                    <Tabs value={rightPanelTab} onValueChange={setRightPanelTab} className="flex-1 flex flex-col">
+                      <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-2">
+                        <TabsTrigger 
+                          value="backlinks"
+                          className="text-xs data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none"
+                        >
+                          <Link2 className="h-3 w-3 mr-1" />
+                          Backlinks
+                        </TabsTrigger>
+                        <TabsTrigger 
+                          value="bible"
+                          className="text-xs data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none"
+                        >
+                          <BookOpen className="h-3 w-3 mr-1" />
+                          Bible
+                        </TabsTrigger>
+                        <TabsTrigger 
+                          value="styleGuide"
+                          className="text-xs data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none"
+                          data-testid="right-panel-style-guide-tab"
+                        >
+                          <BookOpen className="h-3 w-3 mr-1" />
+                          Style Guide
+                        </TabsTrigger>
+                        <TabsTrigger 
+                          value="prompt"
+                          className="text-xs data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none"
+                        >
+                          <Wand2 className="h-3 w-3 mr-1" />
+                          Prompt
+                        </TabsTrigger>
+                      </TabsList>
+                      
+                      <TabsContent value="backlinks" className="flex-1 mt-0 p-0">
+                        <BacklinksPanel />
+                      </TabsContent>
+                      
+                      <TabsContent value="bible" className="flex-1 mt-0 p-0">
+                        <BiblePanel
+                          editorRef={editorRef}
+                          onRequestCreate={handleOpenFullCreateDialog}
+                        />
+                      </TabsContent>
+                      
+                      <TabsContent value="styleGuide" className="flex-1 mt-0 p-0">
+                        <StyleGuidePanel />
+                      </TabsContent>
+                      
+                      <TabsContent value="prompt" className="flex-1 mt-0 p-0">
+                        <PromptStudio />
+                      </TabsContent>
+                    </Tabs>
+                  </div>
+                </ResizablePanel>
+              </>
+            )}
           </ResizablePanelGroup>
         </div>
         

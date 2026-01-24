@@ -225,6 +225,50 @@ function escapeRegex(string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function createFrontmatterHider() {
+  return ViewPlugin.fromClass(class {
+    decorations;
+    
+    constructor(view) {
+      this.decorations = this.buildDecorations(view);
+    }
+    
+    update(update) {
+      if (update.docChanged || update.viewportChanged) {
+        this.decorations = this.buildDecorations(update.view);
+      }
+    }
+    
+    buildDecorations(view) {
+      const builder = new RangeSetBuilder();
+      const text = view.state.doc.toString();
+      
+      if (!text.startsWith('---')) {
+        return builder.finish();
+      }
+      
+      const endMatch = text.indexOf('---', 3);
+      if (endMatch === -1) {
+        return builder.finish();
+      }
+      
+      const endIndex = endMatch + 3;
+      const endLine = view.state.doc.lineAt(endIndex).number;
+      for (let lineNumber = 1; lineNumber <= endLine; lineNumber += 1) {
+        const line = view.state.doc.line(lineNumber);
+        builder.add(line.from, line.from, Decoration.line({ class: 'cm-frontmatter-hidden' }));
+        if (line.to > line.from) {
+          builder.add(line.from, line.to, Decoration.replace({}));
+        }
+      }
+      
+      return builder.finish();
+    }
+  }, {
+    decorations: (v) => v.decorations,
+  });
+}
+
 // Rendered Markdown component for distraction-free mode
 function RenderedMarkdown({ content, entities, isDark, onEntityClick }) {
   // Process content to remove wikilink brackets but keep the names
@@ -335,8 +379,8 @@ function RenderedMarkdown({ content, entities, isDark, onEntityClick }) {
     <div 
       className="prose-container px-6 py-6 overflow-auto h-full"
       style={{ 
-        maxWidth: '65ch', 
-        margin: '0 auto',
+        maxWidth: '100%', 
+        margin: '0',
         fontFamily: "'Merriweather', Georgia, serif",
         lineHeight: '1.8',
         color: isDark ? 'hsl(210, 40%, 98%)' : 'hsl(222, 47%, 11%)',
@@ -442,12 +486,14 @@ export function MarkdownEditor({
   isDark = true,
   highlightEntities = true,
   distractionFree = false,
+  showFrontmatter = false,
   onEntityClick
 }) {
   const editorRef = useRef(null);
   const viewRef = useRef(null);
   const themeCompartment = useRef(new Compartment());
   const entityCompartment = useRef(new Compartment());
+  const frontmatterCompartment = useRef(new Compartment());
   
   const documents = useProjectStore((state) => state.documents);
   
@@ -477,6 +523,7 @@ export function MarkdownEditor({
     const entityPlugin = highlightEntities && entities.length > 0
       ? createEntityMatcher(entities, handleEntityClick)
       : [];
+    const frontmatterPlugin = showFrontmatter ? [] : createFrontmatterHider();
     
     const startState = EditorState.create({
       doc: value || '',
@@ -486,6 +533,7 @@ export function MarkdownEditor({
         syntaxHighlighting(markdownHighlighting),
         themeCompartment.current.of(isDark ? darkEditorTheme : editorTheme),
         entityCompartment.current.of(entityPlugin),
+        frontmatterCompartment.current.of(frontmatterPlugin),
         keymap.of([
           ...defaultKeymap,
           ...historyKeymap,
@@ -544,6 +592,16 @@ export function MarkdownEditor({
       effects: entityCompartment.current.reconfigure(entityPlugin),
     });
   }, [highlightEntities, entities, handleEntityClick, distractionFree]);
+
+  // Update frontmatter visibility
+  useEffect(() => {
+    if (!viewRef.current || distractionFree) return;
+    
+    const frontmatterPlugin = showFrontmatter ? [] : createFrontmatterHider();
+    viewRef.current.dispatch({
+      effects: frontmatterCompartment.current.reconfigure(frontmatterPlugin),
+    });
+  }, [showFrontmatter, distractionFree]);
   
   // Distraction-free mode - render markdown
   if (distractionFree) {
