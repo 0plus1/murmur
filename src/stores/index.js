@@ -36,6 +36,8 @@ export const useUIStore = create(
         set({ theme });
         document.documentElement.classList.toggle('dark', theme === 'dark');
       },
+      setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
+      setRightPanelCollapsed: (collapsed) => set({ rightPanelCollapsed: collapsed }),
       toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
       toggleRightPanel: () => set((state) => ({ rightPanelCollapsed: !state.rightPanelCollapsed })),
       setRightPanelTab: (tab) => set({ rightPanelTab: tab }),

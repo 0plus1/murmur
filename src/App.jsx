@@ -70,6 +70,7 @@ import { useProjectStore, useEditorStore, useUIStore } from '@/stores';
 import { countWords } from '@/lib/markdown';
 import { cn } from '@/lib/utils';
 import { useAutosave } from '@/hooks/useAutosave';
+import { getSetting, setSetting } from '@/lib/db';
 
 // Status colors
 const statusColors = {
@@ -94,6 +95,7 @@ function App() {
   const [highlightEntities, setHighlightEntities] = useState(true);
   const [distractionFree, setDistractionFree] = useState(false);
   const [showFrontmatter, setShowFrontmatter] = useState(false);
+  const settingsLoadedRef = useRef(false);
   
   // Stores
   const theme = useUIStore((state) => state.theme);
@@ -101,6 +103,8 @@ function App() {
   const toggleSidebar = useUIStore((state) => state.toggleSidebar);
   const rightPanelCollapsed = useUIStore((state) => state.rightPanelCollapsed);
   const toggleRightPanel = useUIStore((state) => state.toggleRightPanel);
+  const setSidebarCollapsed = useUIStore((state) => state.setSidebarCollapsed);
+  const setRightPanelCollapsed = useUIStore((state) => state.setRightPanelCollapsed);
   const rightPanelTab = useUIStore((state) => state.rightPanelTab);
   const setRightPanelTab = useUIStore((state) => state.setRightPanelTab);
   const openCommandPalette = useUIStore((state) => state.openCommandPalette);
@@ -125,6 +129,78 @@ function App() {
   const updateStatus = useEditorStore((state) => state.updateStatus);
   const isDirty = useEditorStore((state) => state.isDirty);
   const openDocument = useEditorStore((state) => state.openDocument);
+
+  useEffect(() => {
+    const projectId = currentProject?.id;
+    if (!projectId) return;
+    let active = true;
+
+    const loadSettings = async () => {
+      const [
+        storedSidebarCollapsed,
+        storedRightPanelCollapsed,
+        storedHighlightEntities,
+        storedDistractionFree,
+        storedShowFrontmatter,
+      ] = await Promise.all([
+        getSetting(projectId, 'ui.sidebarCollapsed'),
+        getSetting(projectId, 'ui.rightPanelCollapsed'),
+        getSetting(projectId, 'ui.highlightEntities'),
+        getSetting(projectId, 'ui.distractionFree'),
+        getSetting(projectId, 'ui.showFrontmatter'),
+      ]);
+
+      if (!active) return;
+
+      if (typeof storedSidebarCollapsed === 'boolean') {
+        setSidebarCollapsed(storedSidebarCollapsed);
+      }
+      if (typeof storedRightPanelCollapsed === 'boolean') {
+        setRightPanelCollapsed(storedRightPanelCollapsed);
+      }
+      if (typeof storedHighlightEntities === 'boolean') {
+        setHighlightEntities(storedHighlightEntities);
+      }
+      if (typeof storedDistractionFree === 'boolean') {
+        setDistractionFree(storedDistractionFree);
+      }
+      if (typeof storedShowFrontmatter === 'boolean') {
+        setShowFrontmatter(storedShowFrontmatter);
+      }
+
+      settingsLoadedRef.current = true;
+    };
+
+    loadSettings();
+
+    return () => {
+      active = false;
+    };
+  }, [currentProject?.id, setRightPanelCollapsed, setSidebarCollapsed]);
+
+  useEffect(() => {
+    const projectId = currentProject?.id;
+    if (!projectId || !settingsLoadedRef.current) return;
+
+    const saveSettings = async () => {
+      await Promise.all([
+        setSetting(projectId, 'ui.sidebarCollapsed', sidebarCollapsed),
+        setSetting(projectId, 'ui.rightPanelCollapsed', rightPanelCollapsed),
+        setSetting(projectId, 'ui.highlightEntities', highlightEntities),
+        setSetting(projectId, 'ui.distractionFree', distractionFree),
+        setSetting(projectId, 'ui.showFrontmatter', showFrontmatter),
+      ]);
+    };
+
+    saveSettings();
+  }, [
+    currentProject?.id,
+    sidebarCollapsed,
+    rightPanelCollapsed,
+    highlightEntities,
+    distractionFree,
+    showFrontmatter,
+  ]);
   
   // Initialize app
   useEffect(() => {
