@@ -22,8 +22,7 @@ const editorTheme = EditorView.theme({
   },
   '.cm-content': {
     padding: '24px 0',
-    maxWidth: '65ch',
-    margin: '0 auto',
+    width: '100%',
     lineHeight: '1.8',
     caretColor: 'hsl(173, 58%, 39%)',
   },
@@ -69,8 +68,7 @@ const darkEditorTheme = EditorView.theme({
   },
   '.cm-content': {
     padding: '24px 0',
-    maxWidth: '65ch',
-    margin: '0 auto',
+    width: '100%',
     lineHeight: '1.8',
     caretColor: 'hsl(173, 58%, 50%)',
   },
