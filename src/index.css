@@ -156,6 +156,10 @@
   outline: none;
 }
 
+.cm-line.cm-frontmatter-hidden {
+  display: none;
+}
+
 /* Prevent text selection in UI elements */
 .select-none {
   user-select: none;

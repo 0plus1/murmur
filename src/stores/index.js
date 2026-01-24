@@ -25,6 +25,7 @@ export const useUIStore = create(
     (set, get) => ({
       theme: 'dark',
       sidebarCollapsed: false,
+      rightPanelCollapsed: false,
       rightPanelTab: 'backlinks', // backlinks | bible | styleGuide | prompt
       commandPaletteOpen: false,
       promptStudioOpen: false,
@@ -36,6 +37,7 @@ export const useUIStore = create(
         document.documentElement.classList.toggle('dark', theme === 'dark');
       },
       toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
+      toggleRightPanel: () => set((state) => ({ rightPanelCollapsed: !state.rightPanelCollapsed })),
       setRightPanelTab: (tab) => set({ rightPanelTab: tab }),
       openCommandPalette: () => set({ commandPaletteOpen: true }),
       closeCommandPalette: () => set({ commandPaletteOpen: false }),
@@ -49,7 +51,11 @@ export const useUIStore = create(
     }),
     {
       name: 'murmur-ui',
-      partialize: (state) => ({ theme: state.theme, sidebarCollapsed: state.sidebarCollapsed }),
+      partialize: (state) => ({
+        theme: state.theme,
+        sidebarCollapsed: state.sidebarCollapsed,
+        rightPanelCollapsed: state.rightPanelCollapsed,
+      }),
     }
   )
 );
