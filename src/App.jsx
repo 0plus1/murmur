@@ -333,6 +333,16 @@ function App() {
             >
               <PanelLeftClose className={cn("h-4 w-4 transition-transform", sidebarCollapsed && "rotate-180")} />
             </Button>
+
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-8 w-8"
+              onClick={toggleRightPanel}
+              data-testid="toggle-right-panel-btn"
+            >
+              <PanelRightClose className={cn("h-4 w-4 transition-transform", rightPanelCollapsed && "rotate-180")} />
+            </Button>
             
             <Separator orientation="vertical" className="h-5" />
             
@@ -581,23 +591,6 @@ function App() {
                           </TooltipContent>
                         </Tooltip>
 
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button 
-                              variant={rightPanelCollapsed ? "secondary" : "ghost"}
-                              size="icon" 
-                              className="h-6 w-6"
-                              onClick={toggleRightPanel}
-                              data-testid="right-panel-toggle"
-                            >
-                              <PanelRightClose className={cn("h-3 w-3 transition-transform", rightPanelCollapsed && "rotate-180")} />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            {rightPanelCollapsed ? 'Show' : 'Hide'} right panel
-                          </TooltipContent>
-                        </Tooltip>
-                        
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Button 
