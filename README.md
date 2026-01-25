@@ -90,7 +90,7 @@ murmur follows a local-first design:
 ### Setup
 ```bash
 yarn install
-yarn start
+yarn dev
 ```
 
 ### Build
