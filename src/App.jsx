@@ -64,6 +64,7 @@ import { CreateDocumentDialog } from '@/components/dialogs/CreateDocumentDialog'
 import { DeleteProjectDialog } from '@/components/dialogs/DeleteProjectDialog';
 import { CreateProjectDialog } from '@/components/dialogs/CreateProjectDialog';
 import { QuickCreateDialog } from '@/components/dialogs/QuickCreateDialog';
+import { ManuscriptPreviewDialog } from '@/components/dialogs/ManuscriptPreviewDialog';
 
 // Stores
 import { useProjectStore, useEditorStore, useUIStore } from '@/stores';
@@ -81,6 +82,10 @@ import {
   getManuscriptWordCount,
   isManuscriptDocument,
 } from '@/lib/manuscript/stats';
+import {
+  buildManuscriptRawMarkdown,
+  buildManuscriptRenderedMarkdown,
+} from '@/lib/manuscript/preview';
 
 // Status colors
 const statusColors = {
@@ -100,6 +105,7 @@ function App() {
   const [renameDoc, setRenameDoc] = useState(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [createProjectDialogOpen, setCreateProjectDialogOpen] = useState(false);
+  const [manuscriptPreviewOpen, setManuscriptPreviewOpen] = useState(false);
   const [wordCount, setWordCount] = useState(0);
   const [lastSaved, setLastSaved] = useState(null);
   const [highlightEntities, setHighlightEntities] = useState(true);
@@ -162,6 +168,31 @@ function App() {
       readingTimeLabel: formatReadingTime(estimatedReadingMinutes),
     };
   }, [documents, currentDocument?.id, currentDocument?.markdown, currentDocument?.type]);
+
+  const manuscriptPreviewSourceDocuments = useMemo(() => {
+    if (!currentDocument) return documents;
+
+    return documents.map((doc) => {
+      if (doc.id !== currentDocument.id) return doc;
+
+      return {
+        ...doc,
+        ...currentDocument,
+        markdown: currentDocument.markdown ?? doc.markdown,
+        title: currentDocument.title ?? doc.title,
+        type: currentDocument.type ?? doc.type,
+        order: currentDocument.order ?? doc.order,
+        status: currentDocument.status ?? doc.status,
+      };
+    });
+  }, [documents, currentDocument]);
+
+  const manuscriptPreviewContent = useMemo(() => {
+    return {
+      renderedMarkdown: buildManuscriptRenderedMarkdown(manuscriptPreviewSourceDocuments),
+      rawMarkdown: buildManuscriptRawMarkdown(manuscriptPreviewSourceDocuments),
+    };
+  }, [manuscriptPreviewSourceDocuments]);
 
   useEffect(() => {
     const projectId = currentProject?.id;
@@ -471,6 +502,21 @@ function App() {
                 </Button>
               </TooltipTrigger>
               <TooltipContent>Export</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setManuscriptPreviewOpen(true)}
+                  data-testid="manuscript-preview-btn"
+                >
+                  <Eye className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Preview manuscript</TooltipContent>
             </Tooltip>
 
             <div
@@ -815,6 +861,13 @@ function App() {
           open={createProjectDialogOpen}
           onClose={() => setCreateProjectDialogOpen(false)}
           onCreate={handleCreateProject}
+        />
+        <ManuscriptPreviewDialog
+          open={manuscriptPreviewOpen}
+          onOpenChange={setManuscriptPreviewOpen}
+          renderedMarkdown={manuscriptPreviewContent.renderedMarkdown}
+          rawMarkdown={manuscriptPreviewContent.rawMarkdown}
+          isDark={theme === 'dark'}
         />
         
         {/* Toast notifications */}
