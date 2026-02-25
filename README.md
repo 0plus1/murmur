@@ -3,10 +3,10 @@
 
 **A local-first writing studio for long-form fiction.**
 
-murmur is a Progressive Web App (PWA) for novelists, screenwriters, and writers working on long-form projects. It provides a calm, distraction-free environment with strong organisational tools, while keeping your work fully local and portable.
+murmur is a native writing studio (Tauri) for novelists, screenwriters, and writers working on long-form projects. It provides a calm, distraction-free environment with strong organisational tools, while keeping your work fully local and portable.
 
 No accounts. No cloud. No telemetry.
-Works offline after the first load.
+Works fully offline. macOS only for now.
 
 ## Why murmur
 
@@ -21,11 +21,6 @@ It gives you:
 * Obsidian-style internal links
 * Markdown as the export format
 * A typography-first interface designed for focus
-
-## 🚀 Live Demo
-![App preview](./docs/preview.png)
-Try murmur instantly in your browser: [https://murmur-editor.netlify.app/](https://murmur-editor.netlify.app/)
-
 
 ## Features
 
@@ -52,7 +47,7 @@ Try murmur instantly in your browser: [https://murmur-editor.netlify.app/](https
 - **CodeMirror 6**: Fast, reliable markdown editing
 - **Syntax highlighting**: Visual distinction for headings, emphasis, links
 - **YAML frontmatter**: Structured metadata for each document
-- **Autosave**: Changes saved automatically to IndexedDB
+- **Autosave**: Changes saved automatically to IndexedDB and mirrored to disk
 
 ### 🧠 Prompt Studio
 Generate copyable prompts for external AI tools (ChatGPT, Claude, etc.):
@@ -63,8 +58,11 @@ Generate copyable prompts for external AI tools (ChatGPT, Claude, etc.):
 
 ### 📦 Export
 - **ZIP download**: Export entire project as organized markdown files
-- **Folder sync**: Write directly to disk (File System Access API, where supported)
 - **Standard structure**: `/manuscript/`, `/bible/`, `/notes/`
+
+### 💾 Storage
+- **Choose once**: Pick a base folder on first run (changeable in Settings)
+- **Live mirror**: Project folders update in real time as you write
 
 ### ⌨️ Keyboard Shortcuts
 - `Cmd/Ctrl + K`: Quick search & command palette
@@ -75,10 +73,11 @@ Generate copyable prompts for external AI tools (ChatGPT, Claude, etc.):
 
 murmur follows a local-first design:
 
-1. **All data in IndexedDB**: Projects, documents, and indexes are stored entirely in your browser
-2. **No network calls**: After initial load, works completely offline
-3. **No accounts or cloud**: Your data stays on your device
-4. **Markdown as source of truth**: Documents are stored with YAML frontmatter, easily exported
+1. **IndexedDB for fast local state**: Projects, documents, and indexes stay on device
+2. **Disk mirror**: Markdown files are written in real time to a user-selected folder
+3. **No network calls**: Works completely offline
+4. **No accounts or cloud**: Your data stays on your device
+5. **Markdown as source of truth**: Documents are stored with YAML frontmatter, easily exported
 
 
 ## Development
@@ -86,14 +85,20 @@ murmur follows a local-first design:
 ### Prerequisites
 - Node.js 18+
 - Yarn
+- Rust 1.77.2+
+- Tauri system dependencies for macOS
 
 ### Setup
 ```bash
 yarn install
-yarn dev
 ```
 
-### Build
+### Run (native)
+```bash
+yarn tauri
+```
+
+### Build (frontend only)
 ```bash
 yarn build
 ```
@@ -110,9 +115,9 @@ yarn test:watch
 ## Privacy
 
 - **No telemetry**: Zero analytics or tracking
-- **No network calls**: After initial load, completely offline
+- **No network calls**: Completely offline
 - **No accounts**: No sign-up or login required
-- **Your data is yours**: All content stays in your browser
+- **Your data is yours**: All content stays on your device
 
 ## License
 
