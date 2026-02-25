@@ -29,9 +29,7 @@ export function SettingsDialog() {
   const theme = useUIStore((state) => state.theme);
   const setTheme = useUIStore((state) => state.setTheme);
   
-  const currentProject = useProjectStore((state) => state.currentProject);
   const recreateSampleProject = useProjectStore((state) => state.recreateSampleProject);
-  const reindexCurrentProject = useProjectStore((state) => state.reindexCurrentProject);
   const syncAllProjectsToDisk = useProjectStore((state) => state.syncAllProjectsToDisk);
 
   useEffect(() => {
@@ -56,15 +54,6 @@ export function SettingsDialog() {
     }
   };
   
-  const handleReindex = async () => {
-    try {
-      await reindexCurrentProject();
-      toast.success('Project reindexed');
-    } catch (e) {
-      toast.error(`Reindex failed: ${e.message}`);
-    }
-  };
-
   const handleChooseStorage = async () => {
     setSelectingStorage(true);
     const previousPath = storagePath;
@@ -186,17 +175,6 @@ export function SettingsDialog() {
             <h4 className="text-sm font-medium mb-3">Project Actions</h4>
             
             <div className="space-y-2">
-              <Button
-                variant="outline"
-                className="w-full justify-start"
-                onClick={handleReindex}
-                disabled={!currentProject}
-                data-testid="reindex-btn"
-              >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Reindex Project
-              </Button>
-              
               <Button
                 variant="outline"
                 className="w-full justify-start"

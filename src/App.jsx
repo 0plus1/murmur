@@ -58,6 +58,7 @@ import { StyleGuidePanel } from '@/components/panels/StyleGuidePanel';
 import { CommandPalette } from '@/components/dialogs/CommandPalette';
 import { ExportModal } from '@/components/dialogs/ExportModal';
 import { SettingsDialog } from '@/components/dialogs/SettingsDialog';
+import { ProjectSettingsDialog } from '@/components/dialogs/ProjectSettingsDialog';
 import { StorageSetupDialog } from '@/components/dialogs/StorageSetupDialog';
 import { RenameDocumentDialog } from '@/components/dialogs/RenameDocumentDialog';
 import { CreateDocumentDialog } from '@/components/dialogs/CreateDocumentDialog';
@@ -96,7 +97,7 @@ const statusColors = {
 const statusOptions = ['draft', 'revised', 'final'];
 
 function App() {
-  const editorRef = useRef(null);
+  const editorApiRef = useRef(null);
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
   const [quickCreateType, setQuickCreateType] = useState('chapter');
   const [fullCreateDialogOpen, setFullCreateDialogOpen] = useState(false);
@@ -105,12 +106,14 @@ function App() {
   const [renameDoc, setRenameDoc] = useState(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [createProjectDialogOpen, setCreateProjectDialogOpen] = useState(false);
+  const [projectSettingsOpen, setProjectSettingsOpen] = useState(false);
   const [manuscriptPreviewOpen, setManuscriptPreviewOpen] = useState(false);
   const [wordCount, setWordCount] = useState(0);
   const [lastSaved, setLastSaved] = useState(null);
   const [highlightEntities, setHighlightEntities] = useState(true);
   const [distractionFree, setDistractionFree] = useState(false);
   const [showFrontmatter, setShowFrontmatter] = useState(false);
+  const [pendingSectionJump, setPendingSectionJump] = useState(null);
   const settingsLoadedRef = useRef(false);
   
   // Stores
@@ -136,6 +139,7 @@ function App() {
   const createNewProject = useProjectStore((state) => state.createNewProject);
   const removeProject = useProjectStore((state) => state.removeProject);
   const recreateSampleProject = useProjectStore((state) => state.recreateSampleProject);
+  const reindexCurrentProject = useProjectStore((state) => state.reindexCurrentProject);
   const loading = useProjectStore((state) => state.loading);
   const initialized = useProjectStore((state) => state.initialized);
   
@@ -211,6 +215,7 @@ function App() {
     const projectId = currentProject?.id;
     if (!projectId) return;
     let active = true;
+    settingsLoadedRef.current = false;
 
     const loadSettings = async () => {
       const [
@@ -397,6 +402,58 @@ function App() {
       toast.error(`Failed to delete: ${e.message}`);
     }
   };
+
+  const handleReindexProject = useCallback(async () => {
+    try {
+      await reindexCurrentProject();
+      toast.success('Project reindexed');
+    } catch (e) {
+      toast.error(`Reindex failed: ${e.message}`);
+    }
+  }, [reindexCurrentProject]);
+
+  const handleSelectSectionInTree = useCallback((docId, offset) => {
+    if (distractionFree) {
+      setDistractionFree(false);
+    }
+
+    if (currentDocument?.id !== docId) {
+      setPendingSectionJump({ docId, offset });
+      openDocument(docId);
+      return;
+    }
+
+    const didJump = editorApiRef.current?.jumpToOffset?.(offset);
+    if (!didJump) {
+      setPendingSectionJump({ docId, offset });
+    }
+  }, [currentDocument?.id, distractionFree, openDocument]);
+
+  useEffect(() => {
+    if (!pendingSectionJump) return;
+    if (currentDocument?.id !== pendingSectionJump.docId) return;
+
+    let attempts = 0;
+    let timerId;
+
+    const tryJump = () => {
+      attempts += 1;
+      const didJump = editorApiRef.current?.jumpToOffset?.(pendingSectionJump.offset);
+      if (didJump) {
+        setPendingSectionJump(null);
+        return;
+      }
+      if (attempts < 10) {
+        timerId = window.setTimeout(tryJump, 30);
+      }
+    };
+
+    timerId = window.setTimeout(tryJump, 0);
+
+    return () => {
+      if (timerId) window.clearTimeout(timerId);
+    };
+  }, [pendingSectionJump, currentDocument?.id, distractionFree]);
   
   // Loading state
   if (!initialized) {
@@ -437,6 +494,22 @@ function App() {
             </Button>
             
             <Separator orientation="vertical" className="h-5" />
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setProjectSettingsOpen(true)}
+                  disabled={!currentProject}
+                  data-testid="project-settings-btn"
+                >
+                  <Settings className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Project settings</TooltipContent>
+            </Tooltip>
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -589,6 +662,7 @@ function App() {
                     <FileTree 
                       onCreateDocument={handleCreateDocument}
                       onRenameDocument={handleRenameDocument}
+                      onSelectSection={handleSelectSectionInTree}
                     />
                   </div>
                 </ResizablePanel>
@@ -759,8 +833,9 @@ function App() {
                     </div>
                     
                     {/* Editor */}
-                    <div className="flex-1 overflow-hidden" ref={editorRef}>
+                    <div className="flex-1 overflow-hidden">
                       <MarkdownEditor
+                        ref={editorApiRef}
                         value={currentDocument.markdown}
                         onChange={handleContentChange}
                         isDark={theme === 'dark'}
@@ -829,7 +904,7 @@ function App() {
                       
                       <TabsContent value="bible" className="flex-1 mt-0 p-0">
                         <BiblePanel
-                          editorRef={editorRef}
+                          editorRef={editorApiRef}
                           onRequestCreate={handleOpenFullCreateDialog}
                         />
                       </TabsContent>
@@ -857,6 +932,12 @@ function App() {
         />
         <ExportModal />
         <SettingsDialog />
+        <ProjectSettingsDialog
+          open={projectSettingsOpen}
+          onOpenChange={setProjectSettingsOpen}
+          project={currentProject}
+          onReindex={handleReindexProject}
+        />
         <StorageSetupDialog />
         <QuickCreateDialog
           open={quickCreateOpen}

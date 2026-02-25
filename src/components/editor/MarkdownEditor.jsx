@@ -1,7 +1,7 @@
 /**
  * Rich Markdown Editor with entity highlighting and distraction-free mode
  */
-import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
+import { forwardRef, useEffect, useRef, useCallback, useMemo, useState, useImperativeHandle } from 'react';
 import { EditorView, keymap, placeholder, Decoration, ViewPlugin, WidgetType } from '@codemirror/view';
 import { EditorState, Compartment, RangeSetBuilder } from '@codemirror/state';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
@@ -480,7 +480,7 @@ function RenderedMarkdown({ content, entities, isDark, onEntityClick }) {
   );
 }
 
-export function MarkdownEditor({ 
+export const MarkdownEditor = forwardRef(function MarkdownEditor({
   value, 
   onChange, 
   isDark = true,
@@ -488,7 +488,7 @@ export function MarkdownEditor({
   distractionFree = false,
   showFrontmatter = false,
   onEntityClick
-}) {
+}, ref) {
   const editorRef = useRef(null);
   const viewRef = useRef(null);
   const themeCompartment = useRef(new Compartment());
@@ -515,6 +515,45 @@ export function MarkdownEditor({
       onEntityClick(entity.id);
     }
   }, [onEntityClick]);
+
+  useImperativeHandle(ref, () => ({
+    insertAtCursor(text) {
+      const view = viewRef.current;
+      if (!view || distractionFree) return false;
+
+      const selection = view.state.selection.main;
+      const insertText = String(text ?? '');
+      const anchor = selection.from + insertText.length;
+
+      view.dispatch({
+        changes: { from: selection.from, to: selection.to, insert: insertText },
+        selection: { anchor },
+        scrollIntoView: true,
+      });
+      view.focus();
+      return true;
+    },
+    jumpToOffset(offset) {
+      const view = viewRef.current;
+      if (!view || distractionFree) return false;
+
+      const docLength = view.state.doc.length;
+      const target = Math.max(0, Math.min(Number(offset) || 0, docLength));
+
+      view.dispatch({
+        selection: { anchor: target, head: target },
+        effects: EditorView.scrollIntoView(target, { y: 'start', yMargin: 24 }),
+      });
+      view.focus();
+      return true;
+    },
+    focus() {
+      const view = viewRef.current;
+      if (!view || distractionFree) return false;
+      view.focus();
+      return true;
+    },
+  }), [distractionFree]);
   
   // Initialize editor
   useEffect(() => {
@@ -628,6 +667,6 @@ export function MarkdownEditor({
       data-testid="markdown-editor"
     />
   );
-}
+});
 
 export default MarkdownEditor;

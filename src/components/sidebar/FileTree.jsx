@@ -48,6 +48,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
+import { splitFrontmatter } from '@/lib/markdown/frontmatter';
 import { useProjectStore, useEditorStore } from '@/stores';
 
 const typeIcons = {
@@ -65,7 +66,73 @@ const statusColors = {
   final: 'bg-green-500/20 text-green-400 border-green-500/30',
 };
 
-function SortableItem({ doc, isActive, onSelect, onRename, onDuplicate, onDelete, onStatusChange }) {
+function getChapterSections(markdown = '') {
+  const { frontmatterRaw, content } = splitFrontmatter(markdown || '');
+  const baseOffset = frontmatterRaw.length;
+  const rawLines = content.split('\n');
+  const sections = [];
+  let offset = baseOffset;
+  let currentLines = [];
+
+  const pushSection = () => {
+    const previewSource = currentLines.map((line) => line.text).join(' ');
+    const text = previewSource.replace(/\s+/g, ' ').trim();
+    if (!text) {
+      currentLines = [];
+      return;
+    }
+
+    const firstContentLine = currentLines.find((line) => line.text.trim().length > 0) ?? currentLines[0];
+    const column = Math.max(0, firstContentLine.text.search(/\S/));
+
+    sections.push({
+      text,
+      startOffset: firstContentLine.startOffset + (column === -1 ? 0 : column),
+    });
+    currentLines = [];
+  };
+
+  rawLines.forEach((rawLine, index) => {
+    const text = rawLine.replace(/\r$/, '');
+    const hasNewline = index < rawLines.length - 1;
+    const lineLength = rawLine.length + (hasNewline ? 1 : 0);
+    const lineStartOffset = offset;
+
+    if (text.trim() === '***') {
+      pushSection();
+      offset += lineLength;
+      return;
+    }
+
+    currentLines.push({
+      text,
+      startOffset: lineStartOffset,
+    });
+    offset += lineLength;
+  });
+
+  pushSection();
+  return sections;
+}
+
+function getSectionPreview(text, maxLength = 50) {
+  if (!text) return 'Untitled';
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength)}...`;
+}
+
+function SortableItem({
+  doc,
+  isActive,
+  onSelect,
+  onRename,
+  onDuplicate,
+  onDelete,
+  onStatusChange,
+  sectionTreeOpen = false,
+  onToggleSectionTree,
+  onSelectSection,
+}) {
   const {
     attributes,
     listeners,
@@ -82,80 +149,139 @@ function SortableItem({ doc, isActive, onSelect, onRename, onDuplicate, onDelete
   };
   
   const Icon = typeIcons[doc.type] || FileText;
+  const chapterSections = useMemo(() => {
+    if (!sectionTreeOpen || doc.type !== 'chapter') return [];
+    return getChapterSections(doc.markdown || '');
+  }, [sectionTreeOpen, doc.type, doc.markdown]);
   
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={cn(
-        'group flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer transition-colors',
-        'hover:bg-muted/50',
-        isActive && 'bg-primary/10 text-primary'
-      )}
-      onClick={() => onSelect(doc.id)}
-      data-testid={`tree-item-${doc.id}`}
+      className="space-y-1"
     >
-      <span {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
-        <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-      </span>
-      <span className="flex-1 truncate text-sm">{doc.title}</span>
-      {doc.status && (
-        <Badge 
-          variant="outline" 
-          className={cn('text-[10px] px-1.5 py-0', statusColors[doc.status])}
-        >
-          {doc.status}
-        </Badge>
-      )}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="h-6 w-6 opacity-0 group-hover:opacity-100"
-            onClick={(e) => e.stopPropagation()}
+      <div
+        className={cn(
+          'group flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer transition-colors',
+          'hover:bg-muted/50',
+          isActive && 'bg-primary/10 text-primary'
+        )}
+        onClick={() => onSelect(doc.id)}
+        data-testid={`tree-item-${doc.id}`}
+      >
+        <span {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
+          <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+        </span>
+        <span className="flex-1 truncate text-sm">{doc.title}</span>
+        {doc.status && (
+          <Badge 
+            variant="outline" 
+            className={cn('text-[10px] px-1.5 py-0', statusColors[doc.status])}
           >
-            <MoreHorizontal className="h-3 w-3" />
+            {doc.status}
+          </Badge>
+        )}
+        {doc.type === 'chapter' && (
+          <Button
+            variant={sectionTreeOpen ? 'secondary' : 'ghost'}
+            size="sm"
+            className="h-6 px-1.5 font-mono text-[10px] tracking-tight"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleSectionTree?.(doc.id);
+            }}
+            data-testid={`toggle-sections-${doc.id}`}
+            aria-label={sectionTreeOpen ? 'Hide chapter sections' : 'Show chapter sections'}
+          >
+            ***
           </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-40">
-          <DropdownMenuItem onClick={() => onRename(doc)}>
-            <Pencil className="h-3 w-3 mr-2" />
-            Rename
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => onDuplicate(doc.id)}>
-            <Copy className="h-3 w-3 mr-2" />
-            Duplicate
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          {['chapter', 'scene'].includes(doc.type) && (
-            <>
-              <DropdownMenuItem onClick={() => onStatusChange(doc.id, 'draft')}>
-                Set Draft
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onStatusChange(doc.id, 'revised')}>
-                Set Revised
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onStatusChange(doc.id, 'final')}>
-                Set Final
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-            </>
-          )}
-          <DropdownMenuItem 
-            className="text-destructive focus:text-destructive"
-            onClick={() => onDelete(doc.id)}
-          >
-            <Trash2 className="h-3 w-3 mr-2" />
-            Delete
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-6 w-6 opacity-0 group-hover:opacity-100"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MoreHorizontal className="h-3 w-3" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-40">
+            <DropdownMenuItem onClick={() => onRename(doc)}>
+              <Pencil className="h-3 w-3 mr-2" />
+              Rename
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onDuplicate(doc.id)}>
+              <Copy className="h-3 w-3 mr-2" />
+              Duplicate
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            {['chapter', 'scene'].includes(doc.type) && (
+              <>
+                <DropdownMenuItem onClick={() => onStatusChange(doc.id, 'draft')}>
+                  Set Draft
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onStatusChange(doc.id, 'revised')}>
+                  Set Revised
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onStatusChange(doc.id, 'final')}>
+                  Set Final
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
+            <DropdownMenuItem 
+              className="text-destructive focus:text-destructive"
+              onClick={() => onDelete(doc.id)}
+            >
+              <Trash2 className="h-3 w-3 mr-2" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      {sectionTreeOpen && chapterSections.length > 0 && (
+        <div className="ml-6 space-y-0.5 pb-1" data-testid={`tree-item-sections-${doc.id}`}>
+          {chapterSections.map((section, index) => (
+            <button
+              key={`${doc.id}-section-${index}`}
+              type="button"
+              className="w-full text-left px-2 py-1 text-xs text-muted-foreground border-l border-border/60 hover:bg-muted/40 hover:text-foreground transition-colors rounded-r-sm"
+              data-testid={`tree-item-section-${doc.id}-${index}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectSection?.(doc.id, section.startOffset);
+              }}
+            >
+              <span className="font-mono text-[10px] mr-2 opacity-80">***</span>
+              <span className="align-middle">{getSectionPreview(section.text)}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function TreeSection({ title, type, items, isOpen, onToggle, onAdd, onSelect, currentDocId, onRename, onDuplicate, onDelete, onStatusChange, onReorder }) {
+function TreeSection({
+  title,
+  type,
+  items,
+  isOpen,
+  onToggle,
+  onAdd,
+  onSelect,
+  currentDocId,
+  onRename,
+  onDuplicate,
+  onDelete,
+  onStatusChange,
+  onReorder,
+  expandedChapterSectionIds,
+  onToggleChapterSections,
+  onSelectChapterSection,
+}) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -208,6 +334,9 @@ function TreeSection({ title, type, items, isOpen, onToggle, onAdd, onSelect, cu
                   onDuplicate={onDuplicate}
                   onDelete={onDelete}
                   onStatusChange={onStatusChange}
+                  sectionTreeOpen={Boolean(expandedChapterSectionIds?.[doc.id])}
+                  onToggleSectionTree={onToggleChapterSections}
+                  onSelectSection={onSelectChapterSection}
                 />
               ))}
               {items.length === 0 && (
@@ -223,7 +352,7 @@ function TreeSection({ title, type, items, isOpen, onToggle, onAdd, onSelect, cu
   );
 }
 
-export function FileTree({ onCreateDocument, onRenameDocument }) {
+export function FileTree({ onCreateDocument, onRenameDocument, onSelectSection }) {
   const documents = useProjectStore((state) => state.documents);
   const currentDocument = useEditorStore((state) => state.currentDocument);
   const openDocument = useEditorStore((state) => state.openDocument);
@@ -239,6 +368,7 @@ export function FileTree({ onCreateDocument, onRenameDocument }) {
     themes: true,
     notes: false,
   });
+  const [expandedChapterSectionIds, setExpandedChapterSectionIds] = useState({});
   
   const manuscriptDocs = useMemo(() => 
     documents.filter((d) => ['chapter', 'scene'].includes(d.type)).sort((a, b) => a.order - b.order),
@@ -276,6 +406,13 @@ export function FileTree({ onCreateDocument, onRenameDocument }) {
   const handleReorder = (type, orderedIds) => {
     reorderDocs(type, orderedIds);
   };
+
+  const handleToggleChapterSections = (docId) => {
+    setExpandedChapterSectionIds((prev) => ({
+      ...prev,
+      [docId]: !prev[docId],
+    }));
+  };
   
   return (
     <ScrollArea className="h-full" data-testid="file-tree">
@@ -294,6 +431,9 @@ export function FileTree({ onCreateDocument, onRenameDocument }) {
           onDelete={removeDocument}
           onStatusChange={updateStatus}
           onReorder={handleReorder}
+          expandedChapterSectionIds={expandedChapterSectionIds}
+          onToggleChapterSections={handleToggleChapterSections}
+          onSelectChapterSection={onSelectSection}
         />
         
         <div className="border-t border-border/50 pt-2">
