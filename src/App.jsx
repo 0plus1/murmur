@@ -169,6 +169,19 @@ function App() {
     };
   }, [documents, currentDocument?.id, currentDocument?.markdown, currentDocument?.type]);
 
+  const currentDocumentStats = useMemo(() => {
+    if (!isManuscriptDocument(currentDocument)) return null;
+
+    const estimatedA5Pages = estimateA5PagesFromWords(wordCount);
+    const estimatedReadingMinutes = estimateReadingMinutesFromWords(wordCount);
+
+    return {
+      estimatedA5Pages,
+      estimatedReadingMinutes,
+      readingTimeLabel: formatReadingTime(estimatedReadingMinutes),
+    };
+  }, [currentDocument, wordCount]);
+
   const manuscriptPreviewSourceDocuments = useMemo(() => {
     if (!currentDocument) return documents;
 
@@ -650,6 +663,18 @@ function App() {
                       </div>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground">
                         <span data-testid="word-count">{wordCount.toLocaleString()} words</span>
+                        {currentDocumentStats && (
+                          <>
+                            <span aria-hidden="true">•</span>
+                            <span data-testid="chapter-a5-pages">
+                              ~{currentDocumentStats.estimatedA5Pages.toLocaleString()} A5 pages
+                            </span>
+                            <span aria-hidden="true">•</span>
+                            <span data-testid="chapter-reading-time">
+                              ~{currentDocumentStats.readingTimeLabel} read
+                            </span>
+                          </>
+                        )}
                         
                         {lastSaved && (
                           <span className="opacity-70">
