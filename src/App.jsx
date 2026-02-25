@@ -2,7 +2,7 @@
  * murmur - Local-first writing studio
  * Main Application Component
  */
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { 
   PanelLeftClose, 
   PanelRightClose,
@@ -74,6 +74,13 @@ import { cn } from '@/lib/utils';
 import { useAutosave } from '@/hooks/useAutosave';
 import { getSetting, setSetting } from '@/lib/db';
 import { getStoragePath } from '@/lib/storage';
+import {
+  estimateA5PagesFromWords,
+  estimateReadingMinutesFromWords,
+  formatReadingTime,
+  getManuscriptWordCount,
+  isManuscriptDocument,
+} from '@/lib/manuscript/stats';
 
 // Status colors
 const statusColors = {
@@ -117,6 +124,7 @@ function App() {
   
   const currentProject = useProjectStore((state) => state.currentProject);
   const projects = useProjectStore((state) => state.projects);
+  const documents = useProjectStore((state) => state.documents);
   const initialize = useProjectStore((state) => state.initialize);
   const openProject = useProjectStore((state) => state.openProject);
   const createNewProject = useProjectStore((state) => state.createNewProject);
@@ -133,6 +141,27 @@ function App() {
   const updateStatus = useEditorStore((state) => state.updateStatus);
   const isDirty = useEditorStore((state) => state.isDirty);
   const openDocument = useEditorStore((state) => state.openDocument);
+
+  const manuscriptStats = useMemo(() => {
+    let totalWords = getManuscriptWordCount(documents);
+
+    if (currentDocument && isManuscriptDocument(currentDocument)) {
+      const persistedDoc = documents.find((doc) => doc.id === currentDocument.id);
+      const persistedWords = persistedDoc ? (typeof persistedDoc.wordCount === 'number' ? persistedDoc.wordCount : countWords(persistedDoc.markdown || '')) : 0;
+      const currentWords = countWords(currentDocument.markdown || '');
+      totalWords += currentWords - persistedWords;
+    }
+
+    const estimatedA5Pages = estimateA5PagesFromWords(totalWords);
+    const estimatedReadingMinutes = estimateReadingMinutesFromWords(totalWords);
+
+    return {
+      totalWords,
+      estimatedA5Pages,
+      estimatedReadingMinutes,
+      readingTimeLabel: formatReadingTime(estimatedReadingMinutes),
+    };
+  }, [documents, currentDocument?.id, currentDocument?.markdown, currentDocument?.type]);
 
   useEffect(() => {
     const projectId = currentProject?.id;
@@ -443,6 +472,23 @@ function App() {
               </TooltipTrigger>
               <TooltipContent>Export</TooltipContent>
             </Tooltip>
+
+            <div
+              className="hidden lg:flex items-center gap-2 px-2 py-1 mx-1 rounded-md border text-xs text-muted-foreground"
+              data-testid="manuscript-stats-summary"
+            >
+              <span data-testid="manuscript-total-words">
+                {manuscriptStats.totalWords.toLocaleString()} words
+              </span>
+              <span aria-hidden="true">•</span>
+              <span data-testid="manuscript-a5-pages">
+                ~{manuscriptStats.estimatedA5Pages.toLocaleString()} A5 pages
+              </span>
+              <span aria-hidden="true">•</span>
+              <span data-testid="manuscript-reading-time">
+                ~{manuscriptStats.readingTimeLabel} read
+              </span>
+            </div>
             
             <Tooltip>
               <TooltipTrigger asChild>
