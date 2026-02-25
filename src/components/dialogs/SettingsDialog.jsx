@@ -1,7 +1,7 @@
 /**
  * Settings Dialog
  */
-import { Sun, Moon, RefreshCw, Trash2, FolderPlus, Loader2 } from 'lucide-react';
+import { Sun, Moon, RefreshCw, FolderOpen, FolderPlus, Loader2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -14,11 +14,15 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { useProjectStore, useUIStore } from '@/stores';
+import { getStoragePath, pickStoragePath, setStoragePath } from '@/lib/storage';
 import { toast } from 'sonner';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 export function SettingsDialog() {
   const [recreating, setRecreating] = useState(false);
+  const [storagePath, setStoragePathState] = useState('');
+  const [selectingStorage, setSelectingStorage] = useState(false);
+  const [syncingStorage, setSyncingStorage] = useState(false);
   
   const open = useUIStore((state) => state.settingsOpen);
   const closeSettings = useUIStore((state) => state.closeSettings);
@@ -28,6 +32,12 @@ export function SettingsDialog() {
   const currentProject = useProjectStore((state) => state.currentProject);
   const recreateSampleProject = useProjectStore((state) => state.recreateSampleProject);
   const reindexCurrentProject = useProjectStore((state) => state.reindexCurrentProject);
+  const syncAllProjectsToDisk = useProjectStore((state) => state.syncAllProjectsToDisk);
+
+  useEffect(() => {
+    if (!open) return;
+    getStoragePath().then((path) => setStoragePathState(path || ''));
+  }, [open]);
   
   const handleThemeToggle = () => {
     setTheme(theme === 'dark' ? 'light' : 'dark');
@@ -52,6 +62,42 @@ export function SettingsDialog() {
       toast.success('Project reindexed');
     } catch (e) {
       toast.error(`Reindex failed: ${e.message}`);
+    }
+  };
+
+  const handleChooseStorage = async () => {
+    setSelectingStorage(true);
+    const previousPath = storagePath;
+    try {
+      const selected = await pickStoragePath();
+      if (!selected) return;
+
+      await setStoragePath(selected);
+      setStoragePathState(selected);
+      try {
+        await syncAllProjectsToDisk();
+        toast.success('Storage folder updated');
+      } catch (e) {
+        await setStoragePath(previousPath || '');
+        setStoragePathState(previousPath || '');
+        throw e;
+      }
+    } catch (e) {
+      toast.error(`Failed to update storage: ${e.message}`);
+    } finally {
+      setSelectingStorage(false);
+    }
+  };
+
+  const handleResyncStorage = async () => {
+    setSyncingStorage(true);
+    try {
+      await syncAllProjectsToDisk();
+      toast.success('Storage synced');
+    } catch (e) {
+      toast.error(`Sync failed: ${e.message}`);
+    } finally {
+      setSyncingStorage(false);
     }
   };
   
@@ -86,6 +132,51 @@ export function SettingsDialog() {
               onCheckedChange={handleThemeToggle}
               data-testid="theme-toggle"
             />
+          </div>
+          
+          <Separator />
+
+          {/* Storage */}
+          <div>
+            <h4 className="text-sm font-medium mb-3">Storage</h4>
+            <div className="space-y-2">
+              <div className="text-xs text-muted-foreground">
+                <p>Markdown files are written to:</p>
+                <p className="break-all" data-testid="storage-path">
+                  {storagePath || 'Not set yet'}
+                </p>
+              </div>
+
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={handleChooseStorage}
+                disabled={selectingStorage}
+                data-testid="storage-change-btn"
+              >
+                {selectingStorage ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <FolderOpen className="h-4 w-4 mr-2" />
+                )}
+                Choose Folder
+              </Button>
+
+              <Button
+                variant="outline"
+                className="w-full justify-start"
+                onClick={handleResyncStorage}
+                disabled={!storagePath || syncingStorage}
+                data-testid="storage-resync-btn"
+              >
+                {syncingStorage ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                )}
+                Resync All Projects
+              </Button>
+            </div>
           </div>
           
           <Separator />
@@ -129,7 +220,7 @@ export function SettingsDialog() {
           <div className="text-xs text-muted-foreground space-y-1">
             <p className="font-medium text-foreground">murmur</p>
             <p>Local-first writing studio for fiction</p>
-            <p>All data stored in your browser (IndexedDB)</p>
+            <p>All data stored locally (IndexedDB + folder mirror)</p>
             <p>No cloud, no analytics, no network calls</p>
           </div>
         </div>

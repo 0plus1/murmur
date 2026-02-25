@@ -1,14 +1,13 @@
 # murmur — agents.md
-
 This file is the single source of truth for how contributors should build, extend, and maintain murmur.
 
 ## Product Identity
 
 - **Name:** murmur
-- **Type:** Local-first PWA writing studio
+- **Type:** Local-first tauri based writing studio
 - **Vibe:** Minimalist, focused, typography-first, local-first
 - **Emotional tone:** Calm, organised, flow-inducing
-- **Non-goals (v1):**
+- **Non-goals:**
   - No AI integrations or API calls
   - No accounts, auth, cloud sync, or telemetry
   - No vendor lock-in formats
@@ -16,10 +15,11 @@ This file is the single source of truth for how contributors should build, exten
 ## Core Principles
 
 1. **Local-first**
-   - Works offline after first load.
-   - No network calls by default.
+   - Works offline.
+   - No network calls.
 2. **Data ownership**
    - Documents are stored as Markdown strings in IndexedDB.
+   - Markdown is mirrored in real time to a user-selected folder on disk.
    - Export produces a plain folder structure of `.md` files + `project.json`.
 3. **Derived index**
    - Links/backlinks/search indexes are derived from stored Markdown and can be rebuilt.
@@ -63,6 +63,17 @@ Use Dexie (or idb) with tables:
 - `entities`: `{ project_id, entity_type, name, doc_id }`
 - `links`: `{ project_id, source_doc_id, target_text, target_doc_id?, target_anchor?, raw }`
 - `settings`: `{ project_id, key, value }`
+  - app-wide keys use `project_id = "app"` (e.g. `storage.rootPath`)
+
+### Disk mirror (derived from IndexedDB)
+Each project is mirrored to the user-selected storage folder:
+
+- `project.json`
+- `manuscript/chapters/*.md`
+- `bible/characters/*.md`
+- `bible/locations/*.md`
+- `bible/themes/*.md`
+- `notes/*.md`
 
 ### Reindexing (mandatory)
 “Reindex Project” must:

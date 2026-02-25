@@ -1,9 +1,11 @@
 /**
- * Export utilities - ZIP export and File System Access API
+ * Export utilities - ZIP export
  */
 import JSZip from 'jszip';
 import { db } from '@/lib/db';
 import { parseFrontmatter } from '@/lib/markdown';
+import { buildDocumentFilename, sanitizeFilename } from '@/lib/storage/filenames';
+import { syncProjectToDisk } from '@/lib/storage';
 
 /**
  * Export project as ZIP file containing markdown files
@@ -27,7 +29,7 @@ export async function exportProjectAsZip(projectId) {
   
   // Add documents to appropriate folders
   for (const doc of documents) {
-    const filename = sanitizeFilename(doc.title) + '.md';
+    const filename = buildDocumentFilename(doc);
     const markdown = doc.markdown;
     
     switch (doc.type) {
@@ -80,112 +82,6 @@ export function downloadZip(blob, filename) {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-}
-
-/**
- * Check if File System Access API is supported
- */
-export function isFileSystemAccessSupported() {
-  return 'showDirectoryPicker' in window;
-}
-
-/**
- * Sync project to folder using File System Access API
- */
-export async function syncToFolder(projectId) {
-  if (!isFileSystemAccessSupported()) {
-    throw new Error('File System Access API is not supported in this browser');
-  }
-  
-  try {
-    const dirHandle = await window.showDirectoryPicker({
-      mode: 'readwrite',
-      startIn: 'documents'
-    });
-    
-    const project = await db.projects.get(projectId);
-    if (!project) throw new Error('Project not found');
-    
-    const documents = await db.documents.where('projectId').equals(projectId).toArray();
-    
-    // Create folder structure
-    const manuscriptDir = await getOrCreateDirectory(dirHandle, 'manuscript');
-    const chaptersDir = await getOrCreateDirectory(manuscriptDir, 'chapters');
-    const bibleDir = await getOrCreateDirectory(dirHandle, 'bible');
-    const charactersDir = await getOrCreateDirectory(bibleDir, 'characters');
-    const locationsDir = await getOrCreateDirectory(bibleDir, 'locations');
-    const themesDir = await getOrCreateDirectory(bibleDir, 'themes');
-    const notesDir = await getOrCreateDirectory(dirHandle, 'notes');
-    
-    // Write documents
-    for (const doc of documents) {
-      const filename = sanitizeFilename(doc.title) + '.md';
-      let targetDir;
-      
-      switch (doc.type) {
-        case 'chapter':
-        case 'scene':
-          targetDir = chaptersDir;
-          break;
-        case 'character':
-          targetDir = charactersDir;
-          break;
-        case 'location':
-          targetDir = locationsDir;
-          break;
-        case 'theme':
-          targetDir = themesDir;
-          break;
-        case 'note':
-        default:
-          targetDir = notesDir;
-      }
-      
-      await writeFile(targetDir, filename, doc.markdown);
-    }
-    
-    // Write project.json
-    const projectJson = {
-      name: project.name,
-      createdAt: project.createdAt,
-      updatedAt: project.updatedAt,
-      syncedAt: new Date().toISOString(),
-      documentCount: documents.length
-    };
-    await writeFile(dirHandle, 'project.json', JSON.stringify(projectJson, null, 2));
-    
-    return true;
-  } catch (e) {
-    if (e.name === 'AbortError') {
-      // User cancelled
-      return false;
-    }
-    throw e;
-  }
-}
-
-async function getOrCreateDirectory(parentHandle, name) {
-  try {
-    return await parentHandle.getDirectoryHandle(name, { create: true });
-  } catch (e) {
-    throw new Error(`Failed to create directory ${name}: ${e.message}`);
-  }
-}
-
-async function writeFile(dirHandle, filename, content) {
-  const fileHandle = await dirHandle.getFileHandle(filename, { create: true });
-  const writable = await fileHandle.createWritable();
-  await writable.write(content);
-  await writable.close();
-}
-
-function sanitizeFilename(name) {
-  return name
-    .replace(/[<>:"/\\|?*]/g, '-')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    .substring(0, 100) || 'untitled';
 }
 
 /**
@@ -249,6 +145,7 @@ export async function importProjectFromZip(file, projectName) {
       updatedAt: now
     });
   }
-  
+
+  await syncProjectToDisk(projectId);
   return projectId;
 }

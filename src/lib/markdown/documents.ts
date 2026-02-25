@@ -63,7 +63,8 @@ export function updateTitle(markdown: string, newTitle: string): string {
   const result = parseFrontmatter(markdown);
   const { frontmatter, content } = result.value;
   const updated = { ...frontmatter, title: newTitle, updated_at: new Date().toISOString() };
-  return generateMarkdown(updated, content);
+  const nextContent = content.replace(/^(#\s+).+$/m, `$1${newTitle}`);
+  return generateMarkdown(updated, nextContent);
 }
 
 export function updateStatus(markdown: string, newStatus: string | null): string {

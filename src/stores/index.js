@@ -15,9 +15,10 @@ import {
   reorderDocuments,
   searchDocuments
 } from '@/lib/db';
-import { createDocumentMarkdown, countWords } from '@/lib/markdown';
+import { createDocumentMarkdown, countWords, updateTitle as updateTitleMarkdown, updateStatus as updateStatusMarkdown } from '@/lib/markdown';
 import { reindexProject, refactorLinks, getBacklinksForDocument, getLinkableItems } from '@/lib/reindexer';
 import { createSampleProject } from '@/lib/sample';
+import { writeDocumentToDisk, removeDocumentFromDisk, removeProjectFromDisk, renameDocumentOnDisk, syncProjectToDisk, syncAllProjectsToDisk as syncAllProjectsToDiskFromStorage } from '@/lib/storage';
 
 // UI Store - for panels, modals, theme
 export const useUIStore = create(
@@ -31,6 +32,7 @@ export const useUIStore = create(
       promptStudioOpen: false,
       settingsOpen: false,
       exportModalOpen: false,
+      storageSetupOpen: false,
       
       setTheme: (theme) => {
         set({ theme });
@@ -50,6 +52,8 @@ export const useUIStore = create(
       closeSettings: () => set({ settingsOpen: false }),
       openExportModal: () => set({ exportModalOpen: true }),
       closeExportModal: () => set({ exportModalOpen: false }),
+      openStorageSetup: () => set({ storageSetupOpen: true }),
+      closeStorageSetup: () => set({ storageSetupOpen: false }),
     }),
     {
       name: 'murmur-ui',
@@ -100,6 +104,7 @@ export const useProjectStore = create((set, get) => ({
       const projects = await getAllProjects();
       set({ projects, loading: false });
       await get().openProject(id);
+      await syncProjectToDisk(id);
       return id;
     } catch (e) {
       set({ error: e.message, loading: false });
@@ -131,7 +136,11 @@ export const useProjectStore = create((set, get) => ({
   removeProject: async (id) => {
     set({ loading: true });
     try {
+      const project = await db.projects.get(id);
       await deleteProject(id);
+      if (project) {
+        await removeProjectFromDisk(project);
+      }
       const projects = await getAllProjects();
       
       // If deleted current project, switch to another or clear
@@ -183,10 +192,21 @@ export const useProjectStore = create((set, get) => ({
       const projects = await getAllProjects();
       set({ projects, loading: false });
       await get().openProject(id);
+      await syncProjectToDisk(id);
     } catch (e) {
       set({ error: e.message, loading: false });
       throw e;
     }
+  },
+
+  syncCurrentProjectToDisk: async () => {
+    const projectId = get().currentProject?.id;
+    if (!projectId) return;
+    await syncProjectToDisk(projectId);
+  },
+
+  syncAllProjectsToDisk: async () => {
+    await syncAllProjectsToDiskFromStorage();
   }
 }));
 
@@ -235,6 +255,11 @@ export const useEditorStore = create((set, get) => ({
       markdown: doc.markdown,
       wordCount 
     });
+
+    const currentProject = useProjectStore.getState().currentProject;
+    if (currentProject) {
+      await writeDocumentToDisk(currentProject, doc);
+    }
     
     set({ isDirty: false });
     
@@ -270,6 +295,12 @@ export const useEditorStore = create((set, get) => ({
     
     await useProjectStore.getState().refreshDocuments();
     await get().openDocument(id);
+
+    const currentProject = useProjectStore.getState().currentProject;
+    const createdDoc = await db.documents.get(id);
+    if (currentProject && createdDoc) {
+      await writeDocumentToDisk(currentProject, createdDoc);
+    }
     
     return id;
   },
@@ -280,11 +311,27 @@ export const useEditorStore = create((set, get) => ({
     if (!doc) return;
     
     const oldTitle = doc.title;
-    await updateDocument(id, { title: newTitle });
+    const updatedMarkdown = updateTitleMarkdown(doc.markdown, newTitle);
+
+    const currentProject = useProjectStore.getState().currentProject;
+    const renamedFile = currentProject
+      ? await renameDocumentOnDisk(currentProject, doc, newTitle)
+      : null;
+
+    await updateDocument(id, { title: newTitle, markdown: updatedMarkdown });
     
     // Refactor links if title changed
     if (oldTitle !== newTitle) {
       await refactorLinks(doc.projectId, oldTitle, newTitle);
+    }
+
+    if (currentProject) {
+      await writeDocumentToDisk(currentProject, {
+        ...doc,
+        title: newTitle,
+        markdown: updatedMarkdown,
+        fileName: renamedFile ?? doc.fileName
+      });
     }
     
     await useProjectStore.getState().refreshDocuments();
@@ -297,13 +344,26 @@ export const useEditorStore = create((set, get) => ({
   
   // Update document status
   updateStatus: async (id, status) => {
-    await updateDocument(id, { status });
+    const doc = await db.documents.get(id);
+    if (!doc) return;
+
+    const updatedMarkdown = updateStatusMarkdown(doc.markdown, status);
+    await updateDocument(id, { status, markdown: updatedMarkdown });
     await useProjectStore.getState().refreshDocuments();
+
+    const currentProject = useProjectStore.getState().currentProject;
+    if (currentProject) {
+      await writeDocumentToDisk(currentProject, {
+        ...doc,
+        status,
+        markdown: updatedMarkdown
+      });
+    }
     
     if (get().currentDocument?.id === id) {
       set((state) => ({
         currentDocument: state.currentDocument 
-          ? { ...state.currentDocument, status }
+          ? { ...state.currentDocument, status, markdown: updatedMarkdown }
           : null
       }));
     }
@@ -311,8 +371,16 @@ export const useEditorStore = create((set, get) => ({
   
   // Delete document
   removeDocument: async (id) => {
+    const doc = await db.documents.get(id);
+    if (!doc) return;
+
     await deleteDocument(id);
     await useProjectStore.getState().refreshDocuments();
+
+    const currentProject = useProjectStore.getState().currentProject;
+    if (currentProject) {
+      await removeDocumentFromDisk(currentProject, doc);
+    }
     
     // Clear current document if deleted
     if (get().currentDocument?.id === id) {
@@ -337,6 +405,13 @@ export const useEditorStore = create((set, get) => ({
     });
     
     await useProjectStore.getState().refreshDocuments();
+
+    const currentProject = useProjectStore.getState().currentProject;
+    const newDoc = await db.documents.get(newId);
+    if (currentProject && newDoc) {
+      await writeDocumentToDisk(currentProject, newDoc);
+    }
+
     return newId;
   },
   

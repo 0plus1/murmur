@@ -19,7 +19,8 @@ import {
   Eye,
   Highlighter,
   Code,
-  Link2
+  Link2,
+  Pencil
 } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 
@@ -57,6 +58,7 @@ import { StyleGuidePanel } from '@/components/panels/StyleGuidePanel';
 import { CommandPalette } from '@/components/dialogs/CommandPalette';
 import { ExportModal } from '@/components/dialogs/ExportModal';
 import { SettingsDialog } from '@/components/dialogs/SettingsDialog';
+import { StorageSetupDialog } from '@/components/dialogs/StorageSetupDialog';
 import { RenameDocumentDialog } from '@/components/dialogs/RenameDocumentDialog';
 import { CreateDocumentDialog } from '@/components/dialogs/CreateDocumentDialog';
 import { DeleteProjectDialog } from '@/components/dialogs/DeleteProjectDialog';
@@ -71,6 +73,7 @@ import { countWords } from '@/lib/markdown';
 import { cn } from '@/lib/utils';
 import { useAutosave } from '@/hooks/useAutosave';
 import { getSetting, setSetting } from '@/lib/db';
+import { getStoragePath } from '@/lib/storage';
 
 // Status colors
 const statusColors = {
@@ -110,6 +113,7 @@ function App() {
   const openCommandPalette = useUIStore((state) => state.openCommandPalette);
   const openExportModal = useUIStore((state) => state.openExportModal);
   const openSettings = useUIStore((state) => state.openSettings);
+  const openStorageSetup = useUIStore((state) => state.openStorageSetup);
   
   const currentProject = useProjectStore((state) => state.currentProject);
   const projects = useProjectStore((state) => state.projects);
@@ -206,6 +210,21 @@ function App() {
   useEffect(() => {
     initialize();
   }, [initialize]);
+
+  useEffect(() => {
+    if (!initialized) return;
+    let active = true;
+
+    getStoragePath().then((path) => {
+      if (active && !path) {
+        openStorageSetup();
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [initialized, openStorageSetup]);
   
   // Apply theme
   useEffect(() => {
@@ -484,6 +503,17 @@ function App() {
                           {currentDocument.title}
                         </h2>
                         {!distractionFree && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => handleRenameDocument(currentDocument)}
+                            data-testid="rename-current-document-btn"
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                        )}
+                        {!distractionFree && (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button
@@ -710,6 +740,7 @@ function App() {
         />
         <ExportModal />
         <SettingsDialog />
+        <StorageSetupDialog />
         <QuickCreateDialog
           open={quickCreateOpen}
           onClose={() => setQuickCreateOpen(false)}

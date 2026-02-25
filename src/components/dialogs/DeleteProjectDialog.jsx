@@ -58,7 +58,7 @@ export function DeleteProjectDialog({ open, onClose, project, onDelete }) {
           </DialogTitle>
           <DialogDescription>
             This action cannot be undone. This will permanently delete the project
-            and all its documents.
+            and all its documents, including the project folder on disk.
           </DialogDescription>
         </DialogHeader>
         

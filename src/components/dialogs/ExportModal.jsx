@@ -1,8 +1,8 @@
 /**
  * Export Modal - Export options dialog
  */
-import { useState } from 'react';
-import { Download, FolderSync, Loader2, Check, AlertCircle } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Download, RefreshCw, Loader2, AlertCircle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -12,16 +12,23 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useProjectStore, useUIStore } from '@/stores';
-import { exportProjectAsZip, downloadZip, syncToFolder, isFileSystemAccessSupported } from '@/lib/export';
+import { exportProjectAsZip, downloadZip } from '@/lib/export';
+import { getStoragePath, syncProjectToDisk } from '@/lib/storage';
 import { toast } from 'sonner';
 
 export function ExportModal() {
   const [exporting, setExporting] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [storagePath, setStoragePathState] = useState('');
   
   const open = useUIStore((state) => state.exportModalOpen);
   const closeExportModal = useUIStore((state) => state.closeExportModal);
   const currentProject = useProjectStore((state) => state.currentProject);
+
+  useEffect(() => {
+    if (!open) return;
+    getStoragePath().then((path) => setStoragePathState(path || ''));
+  }, [open]);
   
   const handleExportZip = async () => {
     if (!currentProject) return;
@@ -44,19 +51,15 @@ export function ExportModal() {
     
     setSyncing(true);
     try {
-      const success = await syncToFolder(currentProject.id);
-      if (success) {
-        toast.success('Project synced to folder');
-        closeExportModal();
-      }
+      await syncProjectToDisk(currentProject.id);
+      toast.success('Project files synced');
+      closeExportModal();
     } catch (e) {
       toast.error(`Sync failed: ${e.message}`);
     } finally {
       setSyncing(false);
     }
   };
-  
-  const fsApiSupported = isFileSystemAccessSupported();
   
   return (
     <Dialog open={open} onOpenChange={closeExportModal}>
@@ -96,27 +99,27 @@ export function ExportModal() {
             variant="outline"
             className="w-full justify-start h-auto py-4"
             onClick={handleSyncToFolder}
-            disabled={syncing || !fsApiSupported || !currentProject}
+            disabled={syncing || !storagePath || !currentProject}
             data-testid="sync-folder-btn"
           >
             {syncing ? (
               <Loader2 className="h-5 w-5 mr-3 animate-spin" />
             ) : (
-              <FolderSync className="h-5 w-5 mr-3" />
+              <RefreshCw className="h-5 w-5 mr-3" />
             )}
             <div className="text-left">
               <div className="font-medium flex items-center gap-2">
-                Sync to Folder
-                {!fsApiSupported && (
+                Resync Project Files
+                {!storagePath && (
                   <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                    Not supported
+                    Set location
                   </span>
                 )}
               </div>
               <div className="text-xs text-muted-foreground">
-                {fsApiSupported 
-                  ? 'Write files directly to a local folder'
-                  : 'Your browser does not support the File System Access API'
+                {storagePath
+                  ? 'Rewrite all project files to the storage folder'
+                  : 'Choose a storage folder in Settings'
                 }
               </div>
             </div>
@@ -127,8 +130,8 @@ export function ExportModal() {
           <p className="flex items-start gap-2">
             <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
             <span>
-              Export creates a folder structure with /manuscript, /bible, and /notes 
-              containing your markdown files with YAML frontmatter.
+              Export creates a folder structure with /manuscript, /bible, and /notes containing
+              your markdown files with YAML frontmatter.
             </span>
           </p>
         </div>
