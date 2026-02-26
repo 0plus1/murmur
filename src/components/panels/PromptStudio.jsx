@@ -39,15 +39,17 @@ Please write the next scene.`,
   rewrite_constraint: {
     name: 'Rewrite with comments...',
     description: 'Rewrite using inline comments as guidance',
-    template: `You are a creative writer tasked to rewrite and update the draft according to the inline comments rendered as /** ... **/.
+    template: `You are a creative writer tasked to rewrite and update the draft according to the marked sections and the COMMENTS list.
 
 INSTRUCTIONS:
-- Treat inline comments (/** ... **/) as editorial guidance to apply in the rewrite
+- The draft includes marked spans in this format: <<C1 START>> ... <<C1 END>>
+- Use the matching entries in the ### COMMENTS section (e.g. [C1], [C2]) as rewrite instructions for those spans
 - Preserve story intent, continuity, and key plot beats unless comments explicitly request a change
 - Improve prose clarity, subtext, and sensory detail where appropriate
+- Keep unmarked parts aligned with the existing voice unless a comment implies broader changes
 - Return only the rewritten draft unless the prompt explicitly asks for notes
 
-DRAFT + INLINE COMMENTS:
+DRAFT + COMMENTS MAP:
 {context}
 `,
   },
@@ -94,44 +96,91 @@ function renderDocumentWithInlineComments(markdown, comments) {
     if (from !== null && to !== null && to > from && from >= 0 && to <= content.length) {
       const key = `${from}:${to}`;
       const existing = inlineRanges.get(key) || [];
-      existing.push(body);
+      existing.push({
+        body,
+        createdAt: comment?.createdAt || null,
+      });
       inlineRanges.set(key, existing);
       continue;
     }
 
-    generalComments.push(body);
+    generalComments.push({
+      body,
+      createdAt: comment?.createdAt || null,
+    });
   }
 
   const ranges = Array.from(inlineRanges.entries())
-    .map(([key, bodies]) => {
+    .map(([key, commentItems]) => {
       const [from, to] = key.split(':').map((value) => Number(value));
-      return { from, to, bodies };
+      return { from, to, commentItems };
     })
     .filter((range) => Number.isFinite(range.from) && Number.isFinite(range.to) && range.to > range.from)
     .sort((a, b) => a.from - b.from || a.to - b.to);
 
-  if (ranges.length === 0) {
-    if (generalComments.length === 0) return content;
-    return `/** ${generalComments.join(' | ')} **/\n\n${content}`;
-  }
+  const commentEntries = [];
 
   let cursor = 0;
   let rendered = '';
+  let commentIndex = 1;
 
   for (const range of ranges) {
-    if (range.from < cursor) continue;
-    rendered += content.slice(cursor, range.to);
-    rendered += ` /** ${range.bodies.join(' | ')} **/`;
+    const commentId = `C${commentIndex++}`;
+    const commentBodies = range.commentItems
+      .sort((a, b) => {
+        const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return aTime - bTime;
+      })
+      .map((item) => item.body);
+
+    commentEntries.push({
+      id: commentId,
+      bodies: commentBodies,
+    });
+
+    if (range.from < cursor) {
+      continue;
+    }
+
+    rendered += content.slice(cursor, range.from);
+    rendered += `<<${commentId} START>>`;
+    rendered += content.slice(range.from, range.to);
+    rendered += `<<${commentId} END>>`;
     cursor = range.to;
   }
 
   rendered += content.slice(cursor);
 
-  if (generalComments.length > 0) {
-    rendered = `/** ${generalComments.join(' | ')} **/\n\n${rendered}`;
+  for (const comment of generalComments.sort((a, b) => {
+    const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return aTime - bTime;
+  })) {
+    commentEntries.push({
+      id: `C${commentIndex++}`,
+      bodies: [comment.body],
+      general: true,
+    });
   }
 
-  return rendered;
+  if (commentEntries.length === 0) {
+    return content;
+  }
+
+  const commentsSection = commentEntries.map((entry) => {
+    const body = entry.bodies.length === 1
+      ? entry.bodies[0]
+      : entry.bodies.map((value, index) => `${index + 1}. ${value}`).join('\n');
+
+    if (entry.general) {
+      return `[${entry.id}]\nGeneral note (not attached to a marked span):\n${body}`;
+    }
+
+    return `[${entry.id}]\n${body}`;
+  }).join('\n\n');
+
+  return `${rendered}\n\n### COMMENTS\n\n${commentsSection}`;
 }
 
 export function PromptStudio() {
