@@ -577,6 +577,7 @@ export const MarkdownEditor = forwardRef(function MarkdownEditor({
   const editorRef = useRef(null);
   const viewRef = useRef(null);
   const lastCommentAnchorRef = useRef({});
+  const lastTextSelectionRef = useRef(null);
   const themeCompartment = useRef(new Compartment());
   const entityCompartment = useRef(new Compartment());
   const commentsCompartment = useRef(new Compartment());
@@ -604,6 +605,19 @@ export const MarkdownEditor = forwardRef(function MarkdownEditor({
       onEntityClick(entity.id);
     }
   }, [onEntityClick]);
+
+  const updateLastTextSelection = useCallback((view) => {
+    if (!view) return;
+    const selection = view.state.selection.main;
+    if (!selection || selection.empty) return;
+
+    lastTextSelectionRef.current = {
+      selectionFrom: selection.from,
+      selectionTo: selection.to,
+      selectedText: view.state.sliceDoc(selection.from, selection.to),
+      anchorOffset: selection.from,
+    };
+  }, []);
 
   useImperativeHandle(ref, () => ({
     insertAtCursor(text) {
@@ -661,10 +675,15 @@ export const MarkdownEditor = forwardRef(function MarkdownEditor({
         anchor.selectionTo = selection.to;
         anchor.selectedText = view.state.sliceDoc(selection.from, selection.to);
         anchor.anchorOffset = selection.from;
+      } else if (lastTextSelectionRef.current) {
+        anchor.selectionFrom = lastTextSelectionRef.current.selectionFrom;
+        anchor.selectionTo = lastTextSelectionRef.current.selectionTo;
+        anchor.selectedText = lastTextSelectionRef.current.selectedText;
+        anchor.anchorOffset = lastTextSelectionRef.current.anchorOffset;
       }
 
       const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
-      if (typeof pos === 'number') {
+      if (typeof pos === 'number' && (anchor.selectionFrom === null || anchor.selectionTo === null)) {
         anchor.anchorOffset = pos;
       }
     }
@@ -710,6 +729,9 @@ export const MarkdownEditor = forwardRef(function MarkdownEditor({
         placeholder('Start writing...'),
         EditorView.lineWrapping,
         EditorView.updateListener.of((update) => {
+          if (update.selectionSet) {
+            updateLastTextSelection(update.view);
+          }
           if (update.docChanged) {
             onChange?.(update.state.doc.toString());
           }
@@ -726,7 +748,7 @@ export const MarkdownEditor = forwardRef(function MarkdownEditor({
       viewRef.current?.destroy();
       viewRef.current = null;
     };
-  }, [distractionFree, comments, commentDraft]);
+  }, [distractionFree]);
   
   // Update content when value prop changes
   useEffect(() => {
