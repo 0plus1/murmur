@@ -13,7 +13,10 @@ import {
   updateDocument,
   deleteDocument,
   reorderDocuments,
-  searchDocuments
+  searchDocuments,
+  getDocumentComments as getDocumentCommentsFromDb,
+  createComment as createCommentRecord,
+  deleteComment as deleteCommentRecord,
 } from '@/lib/db';
 import { createDocumentMarkdown, countWords, updateTitle as updateTitleMarkdown, updateStatus as updateStatusMarkdown } from '@/lib/markdown';
 import { reindexProject, refactorLinks, getBacklinksForDocument, getLinkableItems } from '@/lib/reindexer';
@@ -215,6 +218,8 @@ export const useEditorStore = create((set, get) => ({
   currentDocument: null,
   isDirty: false,
   backlinks: [],
+  comments: [],
+  commentDraft: null,
   linkableItems: [],
   searchResults: [],
   searchQuery: '',
@@ -224,15 +229,15 @@ export const useEditorStore = create((set, get) => ({
     const doc = await db.documents.get(id);
     if (!doc) return;
     
-    set({ currentDocument: doc, isDirty: false });
+    set({ currentDocument: doc, isDirty: false, commentDraft: null, comments: [] });
     
-    // Load backlinks
-    const backlinks = await getBacklinksForDocument(id);
-    set({ backlinks });
-    
-    // Load linkable items for autocomplete
-    const items = await getLinkableItems(doc.projectId);
-    set({ linkableItems: items });
+    const [backlinks, items, comments] = await Promise.all([
+      getBacklinksForDocument(id),
+      getLinkableItems(doc.projectId),
+      getDocumentCommentsFromDb(id),
+    ]);
+
+    set({ backlinks, linkableItems: items, comments });
   },
   
   // Update document content
@@ -384,8 +389,75 @@ export const useEditorStore = create((set, get) => ({
     
     // Clear current document if deleted
     if (get().currentDocument?.id === id) {
-      set({ currentDocument: null, backlinks: [] });
+      set({ currentDocument: null, backlinks: [], comments: [], commentDraft: null });
     }
+  },
+
+  beginCommentDraft: (anchor = {}) => {
+    const currentDocument = get().currentDocument;
+    if (!currentDocument) return false;
+
+    const selectedText = typeof anchor.selectedText === 'string'
+      ? anchor.selectedText.trim()
+      : '';
+    const normalizedSelectedText = selectedText ? selectedText.slice(0, 240) : null;
+
+    set({
+      commentDraft: {
+        body: '',
+        anchorOffset: typeof anchor.anchorOffset === 'number' ? anchor.anchorOffset : null,
+        anchorText: anchor.anchorText || normalizedSelectedText || null,
+        selectionFrom: typeof anchor.selectionFrom === 'number' ? anchor.selectionFrom : null,
+        selectionTo: typeof anchor.selectionTo === 'number' ? anchor.selectionTo : null,
+        selectedText: normalizedSelectedText,
+        createdAt: new Date().toISOString(),
+      },
+    });
+
+    return true;
+  },
+
+  updateCommentDraftBody: (body) => {
+    set((state) => ({
+      commentDraft: state.commentDraft
+        ? { ...state.commentDraft, body }
+        : null,
+    }));
+  },
+
+  cancelCommentDraft: () => set({ commentDraft: null }),
+
+  saveCommentDraft: async () => {
+    const currentDocument = get().currentDocument;
+    const draft = get().commentDraft;
+    if (!currentDocument || !draft) return false;
+
+    const body = (draft.body || '').trim();
+    if (!body) return false;
+
+    await createCommentRecord(currentDocument.projectId, {
+      documentId: currentDocument.id,
+      body,
+      anchorOffset: draft.anchorOffset,
+      anchorText: draft.anchorText,
+      selectionFrom: draft.selectionFrom,
+      selectionTo: draft.selectionTo,
+      selectedText: draft.selectedText,
+    });
+
+    const comments = await getDocumentCommentsFromDb(currentDocument.id);
+    set({ comments, commentDraft: null });
+    return true;
+  },
+
+  deleteComment: async (commentId) => {
+    await deleteCommentRecord(commentId);
+
+    const currentDocument = get().currentDocument;
+    if (!currentDocument) return;
+
+    const comments = await getDocumentCommentsFromDb(currentDocument.id);
+    set({ comments });
   },
   
   // Duplicate document

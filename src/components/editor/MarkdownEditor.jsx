@@ -8,10 +8,16 @@ import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { syntaxHighlighting, HighlightStyle } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
-import { useProjectStore } from '@/stores';
+import { useEditorStore, useProjectStore } from '@/stores';
 import { parseFrontmatter } from '@/lib/markdown';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '@/components/ui/context-menu';
 
 // Custom theme for editor
 const editorTheme = EditorView.theme({
@@ -55,6 +61,10 @@ const editorTheme = EditorView.theme({
   },
   '.cm-entity-highlight:hover': {
     backgroundColor: 'hsla(173, 58%, 39%, 0.3)',
+  },
+  '.cm-comment-highlight': {
+    backgroundColor: 'hsla(173, 58%, 39%, 0.2)',
+    borderRadius: '2px',
   },
 }, { dark: false });
 
@@ -102,6 +112,10 @@ const darkEditorTheme = EditorView.theme({
   '.cm-entity-highlight:hover': {
     backgroundColor: 'hsla(173, 58%, 50%, 0.35)',
   },
+  '.cm-comment-highlight': {
+    backgroundColor: 'hsla(173, 58%, 39%, 0.3)',
+    borderRadius: '2px',
+  },
 }, { dark: true });
 
 // Syntax highlighting
@@ -119,6 +133,7 @@ const markdownHighlighting = HighlightStyle.define([
 
 // Entity highlighter decoration
 const entityHighlightMark = Decoration.mark({ class: 'cm-entity-highlight' });
+const commentHighlightMark = Decoration.mark({ class: 'cm-comment-highlight' });
 
 function createEntityMatcher(entities, onEntityClick) {
   return ViewPlugin.fromClass(class {
@@ -262,6 +277,75 @@ function createFrontmatterHider() {
         }
       }
       
+      return builder.finish();
+    }
+  }, {
+    decorations: (v) => v.decorations,
+  });
+}
+
+function createCommentHighlighter(comments, commentDraft) {
+  return ViewPlugin.fromClass(class {
+    decorations;
+
+    constructor(view) {
+      this.decorations = this.buildDecorations(view);
+    }
+
+    update(update) {
+      if (update.docChanged || update.viewportChanged) {
+        this.decorations = this.buildDecorations(update.view);
+      }
+    }
+
+    buildDecorations(view) {
+      const builder = new RangeSetBuilder();
+      const hasSavedComments = Array.isArray(comments) && comments.length > 0;
+      const hasDraftRange = Number.isInteger(commentDraft?.selectionFrom) && Number.isInteger(commentDraft?.selectionTo);
+
+      if (!hasSavedComments && !hasDraftRange) {
+        return builder.finish();
+      }
+
+      const docLength = view.state.doc.length;
+      const seen = new Set();
+
+      const ranges = [];
+
+      if (Array.isArray(comments)) {
+        for (const comment of comments) {
+          ranges.push(comment);
+        }
+      }
+
+      if (commentDraft) {
+        ranges.push(commentDraft);
+      }
+
+      const normalizedRanges = [];
+
+      for (const comment of ranges) {
+        const from = Number.isInteger(comment?.selectionFrom) ? comment.selectionFrom : null;
+        const to = Number.isInteger(comment?.selectionTo) ? comment.selectionTo : null;
+        if (from === null || to === null) continue;
+        if (to <= from) continue;
+        if (from < 0 || to > docLength) continue;
+
+        const key = `${from}:${to}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        normalizedRanges.push({ from, to });
+      }
+
+      normalizedRanges.sort((a, b) => {
+        if (a.from !== b.from) return a.from - b.from;
+        return a.to - b.to;
+      });
+
+      for (const range of normalizedRanges) {
+        builder.add(range.from, range.to, commentHighlightMark);
+      }
+
       return builder.finish();
     }
   }, {
@@ -487,15 +571,20 @@ export const MarkdownEditor = forwardRef(function MarkdownEditor({
   highlightEntities = true,
   distractionFree = false,
   showFrontmatter = false,
-  onEntityClick
+  onEntityClick,
+  onRequestAddComment,
 }, ref) {
   const editorRef = useRef(null);
   const viewRef = useRef(null);
+  const lastCommentAnchorRef = useRef({});
   const themeCompartment = useRef(new Compartment());
   const entityCompartment = useRef(new Compartment());
+  const commentsCompartment = useRef(new Compartment());
   const frontmatterCompartment = useRef(new Compartment());
   
   const documents = useProjectStore((state) => state.documents);
+  const comments = useEditorStore((state) => state.comments);
+  const commentDraft = useEditorStore((state) => state.commentDraft);
   
   // Get character and location entities
   const entities = useMemo(() => {
@@ -554,6 +643,43 @@ export const MarkdownEditor = forwardRef(function MarkdownEditor({
       return true;
     },
   }), [distractionFree]);
+
+  const captureCommentContext = useCallback((event) => {
+    const anchor = {
+      anchorOffset: null,
+      anchorText: null,
+      selectionFrom: null,
+      selectionTo: null,
+      selectedText: null,
+    };
+
+    const view = viewRef.current;
+    if (view && !distractionFree) {
+      const selection = view.state.selection.main;
+      if (selection && !selection.empty) {
+        anchor.selectionFrom = selection.from;
+        anchor.selectionTo = selection.to;
+        anchor.selectedText = view.state.sliceDoc(selection.from, selection.to);
+        anchor.anchorOffset = selection.from;
+      }
+
+      const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+      if (typeof pos === 'number') {
+        anchor.anchorOffset = pos;
+      }
+    }
+
+    lastCommentAnchorRef.current = anchor;
+  }, [distractionFree]);
+
+  const handleMouseDownCapture = useCallback((event) => {
+    if (event.button !== 2) return;
+    captureCommentContext(event);
+  }, [captureCommentContext]);
+
+  const handleAddComment = useCallback(() => {
+    onRequestAddComment?.(lastCommentAnchorRef.current || {});
+  }, [onRequestAddComment]);
   
   // Initialize editor
   useEffect(() => {
@@ -561,6 +687,9 @@ export const MarkdownEditor = forwardRef(function MarkdownEditor({
     
     const entityPlugin = highlightEntities && entities.length > 0
       ? createEntityMatcher(entities, handleEntityClick)
+      : [];
+    const commentPlugin = (comments.length > 0 || commentDraft)
+      ? createCommentHighlighter(comments, commentDraft)
       : [];
     const frontmatterPlugin = showFrontmatter ? [] : createFrontmatterHider();
     
@@ -572,6 +701,7 @@ export const MarkdownEditor = forwardRef(function MarkdownEditor({
         syntaxHighlighting(markdownHighlighting),
         themeCompartment.current.of(isDark ? darkEditorTheme : editorTheme),
         entityCompartment.current.of(entityPlugin),
+        commentsCompartment.current.of(commentPlugin),
         frontmatterCompartment.current.of(frontmatterPlugin),
         keymap.of([
           ...defaultKeymap,
@@ -596,7 +726,7 @@ export const MarkdownEditor = forwardRef(function MarkdownEditor({
       viewRef.current?.destroy();
       viewRef.current = null;
     };
-  }, [distractionFree]);
+  }, [distractionFree, comments, commentDraft]);
   
   // Update content when value prop changes
   useEffect(() => {
@@ -632,6 +762,19 @@ export const MarkdownEditor = forwardRef(function MarkdownEditor({
     });
   }, [highlightEntities, entities, handleEntityClick, distractionFree]);
 
+  // Update comment highlighting
+  useEffect(() => {
+    if (!viewRef.current || distractionFree) return;
+
+    const commentPlugin = (comments.length > 0 || commentDraft)
+      ? createCommentHighlighter(comments, commentDraft)
+      : [];
+
+    viewRef.current.dispatch({
+      effects: commentsCompartment.current.reconfigure(commentPlugin),
+    });
+  }, [comments, commentDraft, distractionFree]);
+
   // Update frontmatter visibility
   useEffect(() => {
     if (!viewRef.current || distractionFree) return;
@@ -645,27 +788,49 @@ export const MarkdownEditor = forwardRef(function MarkdownEditor({
   // Distraction-free mode - render markdown
   if (distractionFree) {
     return (
-      <div 
-        className="h-full w-full overflow-auto"
-        style={{ backgroundColor: isDark ? 'hsl(222, 47%, 11%)' : 'hsl(210, 40%, 98%)' }}
-        data-testid="markdown-editor-preview"
-      >
-        <RenderedMarkdown 
-          content={cleanContent}
-          entities={highlightEntities ? entities : []}
-          isDark={isDark}
-          onEntityClick={handleEntityClick}
-        />
-      </div>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <div
+            className="h-full w-full overflow-auto"
+            style={{ backgroundColor: isDark ? 'hsl(222, 47%, 11%)' : 'hsl(210, 40%, 98%)' }}
+            data-testid="markdown-editor-preview"
+            onMouseDownCapture={handleMouseDownCapture}
+            onContextMenuCapture={captureCommentContext}
+          >
+            <RenderedMarkdown
+              content={cleanContent}
+              entities={highlightEntities ? entities : []}
+              isDark={isDark}
+              onEntityClick={handleEntityClick}
+            />
+          </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          <ContextMenuItem onSelect={handleAddComment} data-testid="editor-add-comment-menu-item">
+            Add comment
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
     );
   }
   
   return (
-    <div 
-      ref={editorRef} 
-      className="h-full w-full overflow-hidden"
-      data-testid="markdown-editor"
-    />
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <div
+          ref={editorRef}
+          className="h-full w-full overflow-hidden"
+          data-testid="markdown-editor"
+          onMouseDownCapture={handleMouseDownCapture}
+          onContextMenuCapture={captureCommentContext}
+        />
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onSelect={handleAddComment} data-testid="editor-add-comment-menu-item">
+          Add comment
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 });
 

@@ -20,7 +20,8 @@ import {
   Highlighter,
   Code,
   Link2,
-  Pencil
+  Pencil,
+  MessageSquare
 } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 
@@ -55,6 +56,7 @@ import { BacklinksPanel } from '@/components/panels/BacklinksPanel';
 import { BiblePanel } from '@/components/panels/BiblePanel';
 import { PromptStudio } from '@/components/panels/PromptStudio';
 import { StyleGuidePanel } from '@/components/panels/StyleGuidePanel';
+import { CommentsPanel } from '@/components/panels/CommentsPanel';
 import { CommandPalette } from '@/components/dialogs/CommandPalette';
 import { ExportModal } from '@/components/dialogs/ExportModal';
 import { SettingsDialog } from '@/components/dialogs/SettingsDialog';
@@ -151,6 +153,7 @@ function App() {
   const updateStatus = useEditorStore((state) => state.updateStatus);
   const isDirty = useEditorStore((state) => state.isDirty);
   const openDocument = useEditorStore((state) => state.openDocument);
+  const beginCommentDraft = useEditorStore((state) => state.beginCommentDraft);
 
   const manuscriptStats = useMemo(() => {
     let totalWords = getManuscriptWordCount(documents);
@@ -428,6 +431,27 @@ function App() {
       setPendingSectionJump({ docId, offset });
     }
   }, [currentDocument?.id, distractionFree, openDocument]);
+
+  const handleRequestAddComment = useCallback((anchor = {}) => {
+    if (!currentDocument) return;
+
+    const started = beginCommentDraft(anchor);
+    if (!started) return;
+
+    setRightPanelCollapsed(false);
+    setRightPanelTab('comments');
+  }, [beginCommentDraft, currentDocument, setRightPanelCollapsed, setRightPanelTab]);
+
+  const handleSelectComment = useCallback((comment) => {
+    if (!currentDocument) return;
+
+    const offset = Number.isInteger(comment?.selectionFrom)
+      ? comment.selectionFrom
+      : (Number.isInteger(comment?.anchorOffset) ? comment.anchorOffset : null);
+
+    if (offset === null) return;
+    handleSelectSectionInTree(currentDocument.id, offset);
+  }, [currentDocument, handleSelectSectionInTree]);
 
   useEffect(() => {
     if (!pendingSectionJump) return;
@@ -843,6 +867,7 @@ function App() {
                         distractionFree={distractionFree}
                         showFrontmatter={showFrontmatter}
                         onEntityClick={handleEntityClick}
+                        onRequestAddComment={handleRequestAddComment}
                       />
                     </div>
                   </>
@@ -867,6 +892,14 @@ function App() {
                   <div className="h-full border-l flex flex-col">
                     <Tabs value={rightPanelTab} onValueChange={setRightPanelTab} className="flex-1 flex flex-col">
                       <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-2">
+                        <TabsTrigger 
+                          value="comments"
+                          className="text-xs data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none"
+                          data-testid="right-panel-comments-tab"
+                        >
+                          <MessageSquare className="h-3 w-3 mr-1" />
+                          Comments
+                        </TabsTrigger>
                         <TabsTrigger 
                           value="backlinks"
                           className="text-xs data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none"
@@ -897,6 +930,10 @@ function App() {
                           Prompt
                         </TabsTrigger>
                       </TabsList>
+                      
+                      <TabsContent value="comments" className="flex-1 mt-0 p-0">
+                        <CommentsPanel onSelectComment={handleSelectComment} />
+                      </TabsContent>
                       
                       <TabsContent value="backlinks" className="flex-1 mt-0 p-0">
                         <BacklinksPanel />
