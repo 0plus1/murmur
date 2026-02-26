@@ -1,7 +1,7 @@
 /**
  * Prompt Studio - Generate copyable prompts for external AI tools
  */
-import { useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Copy, Check, Wand2, RefreshCw, CheckCircle } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
@@ -139,7 +139,7 @@ export function PromptStudio() {
   const [includeCurrentDoc, setIncludeCurrentDoc] = useState(true);
   const [includePreviousDoc, setIncludePreviousDoc] = useState(false);
   const [selectedEntities, setSelectedEntities] = useState([]);
-  const [includeStyleGuide, setIncludeStyleGuide] = useState(true);
+  const [masterPrompt, setMasterPrompt] = useState(PROMPT_TEMPLATES.draft_scene.template);
   const [copied, setCopied] = useState(false);
   
   const currentDocument = useEditorStore((state) => state.currentDocument);
@@ -168,18 +168,16 @@ export function PromptStudio() {
     );
   }, [currentDocument, documents]);
   
-  // Find style guide
-  const styleGuide = useMemo(() => {
-    return documents.find((d) => 
-      d.type === 'theme' && 
-      d.title.toLowerCase().includes('style guide')
-    );
-  }, [documents]);
-  
   // All bible entities for selection
   const allEntities = useMemo(() => {
     return documents.filter((d) => ['character', 'location', 'theme'].includes(d.type));
   }, [documents]);
+
+  useEffect(() => {
+    const template = PROMPT_TEMPLATES[selectedTemplate];
+    setMasterPrompt(template?.template || '');
+    setCopied(false);
+  }, [selectedTemplate]);
   
   // Toggle entity selection
   const toggleEntity = (docId) => {
@@ -218,25 +216,25 @@ export function PromptStudio() {
       }
     }
     
-    // Add style guide
-    if (includeStyleGuide && styleGuide) {
-      const { content } = parseFrontmatter(styleGuide.markdown).value;
-      contextParts.push(`## Style Guide\n\n${content}`);
-    }
-    
     const context = contextParts.join('\n\n---\n\n');
-    return template.template.replace('{context}', context || '[No context selected]');
+    const contextValue = context || '[No context selected]';
+    const promptSource = masterPrompt || template.template;
+
+    if (promptSource.includes('{context}')) {
+      return promptSource.split('{context}').join(contextValue);
+    }
+
+    return `${promptSource.trim()}\n\nCONTEXT:\n${contextValue}`;
   }, [
     selectedTemplate, 
     includeCurrentDoc, 
     includePreviousDoc, 
     selectedEntities, 
-    includeStyleGuide,
+    masterPrompt,
     currentDocument, 
     comments,
     previousDoc, 
-    documents,
-    styleGuide
+    documents
   ]);
   
   const handleCopy = async () => {
@@ -313,20 +311,6 @@ export function PromptStudio() {
                 </Label>
               </div>
               
-              <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="style-guide" 
-                  checked={includeStyleGuide}
-                  onCheckedChange={setIncludeStyleGuide}
-                  disabled={!styleGuide}
-                />
-                <Label htmlFor="style-guide" className="text-sm cursor-pointer">
-                  Style guide
-                  {!styleGuide && (
-                    <span className="text-muted-foreground ml-1">(not found)</span>
-                  )}
-                </Label>
-              </div>
             </div>
           </div>
           
@@ -376,6 +360,21 @@ export function PromptStudio() {
             </div>
           </div>
           
+          <div>
+            <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              Prompt
+            </h4>
+            <Textarea
+              value={masterPrompt}
+              onChange={(e) => setMasterPrompt(e.target.value)}
+              className="min-h-[180px] text-xs font-mono resize-y"
+              data-testid="master-prompt"
+            />
+            <p className="mt-2 text-xs text-muted-foreground">
+              Use <code>{'{context}'}</code> where the selected context should be inserted.
+            </p>
+          </div>
+
           <div>
             <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
               Generated Prompt
