@@ -1,4 +1,4 @@
-export { parseFrontmatter, generateMarkdown } from './frontmatter';
+export { parseFrontmatter, generateMarkdown, splitFrontmatter } from './frontmatter';
 export { extractWikilinks } from './wikilinks';
 export { extractHeadingsAndAnchors } from './headings';
 export { extractHeadingsAndAnchors as extractHeadings } from './headings';

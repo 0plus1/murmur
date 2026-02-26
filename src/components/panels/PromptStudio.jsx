@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useProjectStore, useEditorStore } from '@/stores';
-import { extractWikilinks, parseFrontmatter } from '@/lib/markdown';
+import { extractWikilinks, parseFrontmatter, splitFrontmatter } from '@/lib/markdown';
 import { toast } from 'sonner';
 
 const PROMPT_TEMPLATES = {
@@ -37,18 +37,19 @@ CONTEXT:
 Please write the next scene.`,
   },
   rewrite_constraint: {
-    name: 'Rewrite with Constraint',
-    description: 'Improve prose with specific guidance',
-    template: `You are an expert editor. Rewrite the provided text with these constraints:
-- Add more subtext to dialogue
-- Reduce exposition
-- Strengthen sensory details
-- Maintain the original meaning and plot points
+    name: 'Rewrite with comments...',
+    description: 'Rewrite using inline comments as guidance',
+    template: `You are a creative writer tasked to rewrite and update the draft according to the inline comments rendered as /** ... **/.
 
-ORIGINAL TEXT:
+INSTRUCTIONS:
+- Treat inline comments (/** ... **/) as editorial guidance to apply in the rewrite
+- Preserve story intent, continuity, and key plot beats unless comments explicitly request a change
+- Improve prose clarity, subtext, and sensory detail where appropriate
+- Return only the rewritten draft unless the prompt explicitly asks for notes
+
+DRAFT + INLINE COMMENTS:
 {context}
-
-Please provide the improved version.`,
+`,
   },
   continuity_check: {
     name: 'Continuity Check',
@@ -66,6 +67,73 @@ List any continuity issues found, with specific quotes and suggestions for fixes
   },
 };
 
+function normalizeInlineCommentText(text) {
+  return String(text ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function renderDocumentWithInlineComments(markdown, comments) {
+  const { content, frontmatterRaw } = splitFrontmatter(markdown || '');
+  const offsetAdjustment = frontmatterRaw.length;
+
+  if (!Array.isArray(comments) || comments.length === 0) {
+    return content;
+  }
+
+  const inlineRanges = new Map();
+  const generalComments = [];
+
+  for (const comment of comments) {
+    const body = normalizeInlineCommentText(comment?.body);
+    if (!body) continue;
+
+    const from = Number.isInteger(comment?.selectionFrom) ? comment.selectionFrom - offsetAdjustment : null;
+    const to = Number.isInteger(comment?.selectionTo) ? comment.selectionTo - offsetAdjustment : null;
+
+    if (from !== null && to !== null && to > from && from >= 0 && to <= content.length) {
+      const key = `${from}:${to}`;
+      const existing = inlineRanges.get(key) || [];
+      existing.push(body);
+      inlineRanges.set(key, existing);
+      continue;
+    }
+
+    generalComments.push(body);
+  }
+
+  const ranges = Array.from(inlineRanges.entries())
+    .map(([key, bodies]) => {
+      const [from, to] = key.split(':').map((value) => Number(value));
+      return { from, to, bodies };
+    })
+    .filter((range) => Number.isFinite(range.from) && Number.isFinite(range.to) && range.to > range.from)
+    .sort((a, b) => a.from - b.from || a.to - b.to);
+
+  if (ranges.length === 0) {
+    if (generalComments.length === 0) return content;
+    return `/** ${generalComments.join(' | ')} **/\n\n${content}`;
+  }
+
+  let cursor = 0;
+  let rendered = '';
+
+  for (const range of ranges) {
+    if (range.from < cursor) continue;
+    rendered += content.slice(cursor, range.to);
+    rendered += ` /** ${range.bodies.join(' | ')} **/`;
+    cursor = range.to;
+  }
+
+  rendered += content.slice(cursor);
+
+  if (generalComments.length > 0) {
+    rendered = `/** ${generalComments.join(' | ')} **/\n\n${rendered}`;
+  }
+
+  return rendered;
+}
+
 export function PromptStudio() {
   const [selectedTemplate, setSelectedTemplate] = useState('draft_scene');
   const [includeCurrentDoc, setIncludeCurrentDoc] = useState(true);
@@ -75,6 +143,7 @@ export function PromptStudio() {
   const [copied, setCopied] = useState(false);
   
   const currentDocument = useEditorStore((state) => state.currentDocument);
+  const comments = useEditorStore((state) => state.comments);
   const documents = useProjectStore((state) => state.documents);
   
   // Find previous document (by order in same type)
@@ -129,7 +198,9 @@ export function PromptStudio() {
     const contextParts = [];
     
     if (includeCurrentDoc && currentDocument) {
-      const { content } = parseFrontmatter(currentDocument.markdown).value;
+      const content = selectedTemplate === 'rewrite_constraint'
+        ? renderDocumentWithInlineComments(currentDocument.markdown, comments)
+        : parseFrontmatter(currentDocument.markdown).value.content;
       contextParts.push(`## Current Document: ${currentDocument.title}\n\n${content}`);
     }
     
@@ -162,6 +233,7 @@ export function PromptStudio() {
     selectedEntities, 
     includeStyleGuide,
     currentDocument, 
+    comments,
     previousDoc, 
     documents,
     styleGuide
