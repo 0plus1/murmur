@@ -33,6 +33,9 @@ export function createDocumentMarkdown(type: string, title: string, status = 'dr
         content = `# ${title}\n\n## Description\n\nExplain the theme and its significance to the story.\n\n## Key Scenes\n\n\n## Character Connections\n\n`;
       }
       break;
+    case 'narrative_spine':
+      content = `# ${title}\n\n## Core Premise\n\nSummarize the core premise in one clear paragraph.\n\n## Throughline\n\nDescribe the narrative throughline across beginning, middle, and end.\n\n## Act Beats\n\n### Act I\n\n\n### Act II\n\n\n### Act III\n\n\n## Emotional Arc\n\nTrack the emotional movement of the story.\n\n## Stakes and Consequences\n\nClarify what is at risk and how stakes escalate.\n\n`;
+      break;
     case 'note':
       content = `# ${title}\n\nYour notes here...\n`;
       break;

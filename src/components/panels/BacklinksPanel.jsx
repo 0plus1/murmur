@@ -14,6 +14,7 @@ const typeIcons = {
   character: Users,
   location: MapPin,
   theme: Sparkles,
+  narrative_spine: FileText,
   note: FileText,
 };
 

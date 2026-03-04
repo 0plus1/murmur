@@ -46,6 +46,9 @@ export async function exportProjectAsZip(projectId) {
       case 'theme':
         themesFolder.file(filename, markdown);
         break;
+      case 'narrative_spine':
+        bibleFolder.file('narrative-spine.md', markdown);
+        break;
       case 'note':
         notesFolder.file(filename, markdown);
         break;
@@ -129,6 +132,7 @@ export async function importProjectFromZip(file, projectName) {
     if (path.includes('characters/')) type = 'character';
     else if (path.includes('locations/')) type = 'location';
     else if (path.includes('themes/')) type = 'theme';
+    else if (/(^|\/)bible\/narrative-spine\.md$/i.test(path)) type = 'narrative_spine';
     else if (path.includes('manuscript/') || path.includes('chapters/')) type = 'chapter';
     
     // Get title from frontmatter or filename

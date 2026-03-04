@@ -889,8 +889,8 @@ function App() {
                 
                 {/* Right Panel */}
                 <ResizablePanel defaultSize={25} minSize={20} maxSize={35}>
-                  <div className="h-full border-l flex flex-col">
-                    <Tabs value={rightPanelTab} onValueChange={setRightPanelTab} className="flex-1 flex flex-col">
+                  <div className="h-full min-h-0 border-l flex flex-col">
+                    <Tabs value={rightPanelTab} onValueChange={setRightPanelTab} className="flex-1 min-h-0 flex flex-col overflow-hidden">
                       <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-2">
                         <TabsTrigger 
                           value="comments"
@@ -931,26 +931,26 @@ function App() {
                         </TabsTrigger>
                       </TabsList>
                       
-                      <TabsContent value="comments" className="flex-1 mt-0 p-0">
+                      <TabsContent value="comments" className="flex-1 min-h-0 overflow-hidden mt-0 p-0">
                         <CommentsPanel onSelectComment={handleSelectComment} />
                       </TabsContent>
                       
-                      <TabsContent value="backlinks" className="flex-1 mt-0 p-0">
+                      <TabsContent value="backlinks" className="flex-1 min-h-0 overflow-hidden mt-0 p-0">
                         <BacklinksPanel />
                       </TabsContent>
                       
-                      <TabsContent value="bible" className="flex-1 mt-0 p-0">
+                      <TabsContent value="bible" className="flex-1 min-h-0 overflow-hidden mt-0 p-0">
                         <BiblePanel
                           editorRef={editorApiRef}
                           onRequestCreate={handleOpenFullCreateDialog}
                         />
                       </TabsContent>
                       
-                      <TabsContent value="styleGuide" className="flex-1 mt-0 p-0">
+                      <TabsContent value="styleGuide" className="flex-1 min-h-0 overflow-hidden mt-0 p-0">
                         <StyleGuidePanel />
                       </TabsContent>
                       
-                      <TabsContent value="prompt" className="flex-1 mt-0 p-0">
+                      <TabsContent value="prompt" className="flex-1 min-h-0 overflow-hidden mt-0 p-0">
                         <PromptStudio />
                       </TabsContent>
                     </Tabs>

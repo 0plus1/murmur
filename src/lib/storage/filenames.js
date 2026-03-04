@@ -14,6 +14,10 @@ export function buildProjectFolderName(project) {
 }
 
 export function buildDocumentFilename(doc, titleOverride) {
+  if (doc?.type === 'narrative_spine') {
+    return 'narrative-spine.md';
+  }
+
   const title = titleOverride ?? doc.title;
   return `${sanitizeFilename(title)}-${doc.id}.md`;
 }

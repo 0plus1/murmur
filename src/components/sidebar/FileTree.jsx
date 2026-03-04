@@ -57,6 +57,7 @@ const typeIcons = {
   character: Users,
   location: MapPin,
   theme: Sparkles,
+  narrative_spine: FileText,
   note: FileText,
 };
 
@@ -212,10 +213,12 @@ function SortableItem({
               <Pencil className="h-3 w-3 mr-2" />
               Rename
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onDuplicate(doc.id)}>
-              <Copy className="h-3 w-3 mr-2" />
-              Duplicate
-            </DropdownMenuItem>
+            {doc.type !== 'narrative_spine' && (
+              <DropdownMenuItem onClick={() => onDuplicate(doc.id)}>
+                <Copy className="h-3 w-3 mr-2" />
+                Duplicate
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             {['chapter', 'scene'].includes(doc.type) && (
               <>
@@ -271,6 +274,7 @@ function TreeSection({
   isOpen,
   onToggle,
   onAdd,
+  allowAdd = true,
   onSelect,
   currentDocId,
   onRename,
@@ -310,15 +314,17 @@ function TreeSection({
             <span className="text-muted-foreground/50 ml-1">({items.length})</span>
           </button>
         </CollapsibleTrigger>
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="h-5 w-5"
-          onClick={() => onAdd(type)}
-          data-testid={`add-${type}-btn`}
-        >
-          <Plus className="h-3 w-3" />
-        </Button>
+        {allowAdd && (
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="h-5 w-5"
+            onClick={() => onAdd(type)}
+            data-testid={`add-${type}-btn`}
+          >
+            <Plus className="h-3 w-3" />
+          </Button>
+        )}
       </div>
       <CollapsibleContent>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -366,6 +372,7 @@ export function FileTree({ onCreateDocument, onRenameDocument, onSelectSection }
     characters: true,
     locations: true,
     themes: true,
+    narrativeSpine: true,
     notes: false,
   });
   const [expandedChapterSectionIds, setExpandedChapterSectionIds] = useState({});
@@ -387,6 +394,11 @@ export function FileTree({ onCreateDocument, onRenameDocument, onSelectSection }
   
   const themeDocs = useMemo(() => 
     documents.filter((d) => d.type === 'theme').sort((a, b) => a.order - b.order),
+    [documents]
+  );
+
+  const narrativeSpineDocs = useMemo(() =>
+    documents.filter((d) => d.type === 'narrative_spine').sort((a, b) => a.order - b.order),
     [documents]
   );
   
@@ -488,6 +500,25 @@ export function FileTree({ onCreateDocument, onRenameDocument, onSelectSection }
             onStatusChange={updateStatus}
             onReorder={handleReorder}
           />
+
+          {narrativeSpineDocs.length > 0 && (
+            <TreeSection
+              title="Narrative Spine"
+              type="narrative_spine"
+              items={narrativeSpineDocs}
+              isOpen={openSections.narrativeSpine}
+              onToggle={() => toggleSection('narrativeSpine')}
+              onAdd={handleAdd}
+              allowAdd={false}
+              onSelect={openDocument}
+              currentDocId={currentDocument?.id}
+              onRename={onRenameDocument}
+              onDuplicate={duplicateDocument}
+              onDelete={removeDocument}
+              onStatusChange={updateStatus}
+              onReorder={handleReorder}
+            />
+          )}
         </div>
         
         <div className="border-t border-border/50 pt-2">

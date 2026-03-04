@@ -40,6 +40,8 @@ export function getFolderForDocType(type) {
       return 'bible/locations';
     case 'theme':
       return 'bible/themes';
+    case 'narrative_spine':
+      return 'bible';
     case 'note':
     default:
       return 'notes';

@@ -91,7 +91,7 @@ export function CommentsPanel({ onSelectComment }) {
   }
 
   return (
-    <div className="h-full flex flex-col" data-testid="comments-panel">
+    <div className="h-full min-h-0 flex flex-col" data-testid="comments-panel">
       <div className="border-b px-4 py-3">
         <div className="flex items-center justify-between gap-2">
           <div>
@@ -152,7 +152,7 @@ export function CommentsPanel({ onSelectComment }) {
         </div>
       )}
 
-      <ScrollArea className="h-full">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="p-4">
           {comments.length === 0 ? (
             <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground" data-testid="comments-list-empty">

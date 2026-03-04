@@ -33,6 +33,7 @@ const typeIcons = {
   character: Users,
   location: MapPin,
   theme: Sparkles,
+  narrative_spine: FileText,
   note: FileText,
 };
 
@@ -88,6 +89,7 @@ export function CommandPalette({ onCreateDocument, onExport, onSettings }) {
       characters: [],
       locations: [],
       themes: [],
+      narrativeSpine: [],
       notes: [],
     };
     
@@ -102,6 +104,8 @@ export function CommandPalette({ onCreateDocument, onExport, onSettings }) {
         groups.locations.push(doc);
       } else if (doc.type === 'theme') {
         groups.themes.push(doc);
+      } else if (doc.type === 'narrative_spine') {
+        groups.narrativeSpine.push(doc);
       } else if (doc.type === 'note') {
         groups.notes.push(doc);
       }
@@ -144,6 +148,10 @@ export function CommandPalette({ onCreateDocument, onExport, onSettings }) {
           <CommandItem onSelect={() => handleAction(() => onCreateDocument('character'))}>
             <Plus className="h-4 w-4 mr-2" />
             New Character
+          </CommandItem>
+          <CommandItem onSelect={() => handleAction(() => onCreateDocument('narrative_spine'))}>
+            <Plus className="h-4 w-4 mr-2" />
+            New Narrative Spine
           </CommandItem>
           <CommandItem onSelect={() => handleAction(openPromptStudio)}>
             <Sparkles className="h-4 w-4 mr-2" />
@@ -226,6 +234,21 @@ export function CommandPalette({ onCreateDocument, onExport, onSettings }) {
                 data-testid={`cmd-doc-${doc.id}`}
               >
                 <Sparkles className="h-4 w-4 mr-2 text-muted-foreground" />
+                <span className="truncate">{doc.title}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+
+        {groupedDocs.narrativeSpine.length > 0 && (
+          <CommandGroup heading="Narrative Spine">
+            {groupedDocs.narrativeSpine.map((doc) => (
+              <CommandItem
+                key={doc.id}
+                onSelect={() => handleSelect(doc.id)}
+                data-testid={`cmd-doc-${doc.id}`}
+              >
+                <FileText className="h-4 w-4 mr-2 text-muted-foreground" />
                 <span className="truncate">{doc.title}</span>
               </CommandItem>
             ))}

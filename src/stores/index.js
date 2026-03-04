@@ -285,6 +285,14 @@ export const useEditorStore = create((set, get) => ({
     if (!projectId) return;
     
     const documents = useProjectStore.getState().documents;
+    if (type === 'narrative_spine') {
+      const existing = documents.find((doc) => doc.type === 'narrative_spine');
+      if (existing) {
+        await get().openDocument(existing.id);
+        return existing.id;
+      }
+    }
+
     const sameTypeDocs = documents.filter(d => d.type === type);
     const maxOrder = Math.max(0, ...sameTypeDocs.map(d => d.order));
     
@@ -464,6 +472,7 @@ export const useEditorStore = create((set, get) => ({
   duplicateDocument: async (id) => {
     const doc = await db.documents.get(id);
     if (!doc) return;
+    if (doc.type === 'narrative_spine') return;
     
     const newTitle = `${doc.title} (copy)`;
     const markdown = createDocumentMarkdown(doc.type, newTitle);

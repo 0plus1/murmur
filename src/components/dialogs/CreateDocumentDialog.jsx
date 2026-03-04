@@ -22,6 +22,7 @@ const docTypes = [
   { type: 'character', label: 'Character', icon: Users, description: 'Character profile' },
   { type: 'location', label: 'Location', icon: MapPin, description: 'Place or setting' },
   { type: 'theme', label: 'Theme', icon: Sparkles, description: 'Theme or style note' },
+  { type: 'narrative_spine', label: 'Narrative Spine', icon: FileText, description: 'Story structure and core throughline' },
   { type: 'note', label: 'Note', icon: StickyNote, description: 'General note' },
 ];
 
@@ -62,7 +63,7 @@ export function CreateDocumentDialog({ open, onClose, initialType, onCreateDocum
         
         <div className="space-y-4 py-4">
           {/* Type Selection */}
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-4 gap-2">
             {docTypes.map(({ type, label, icon: Icon }) => (
               <button
                 key={type}

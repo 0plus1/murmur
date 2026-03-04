@@ -20,6 +20,7 @@ const typeConfig = {
   character: { label: 'Character', icon: Users, placeholder: 'Character name...' },
   location: { label: 'Location', icon: MapPin, placeholder: 'Location name...' },
   theme: { label: 'Theme', icon: Sparkles, placeholder: 'Theme title...' },
+  narrative_spine: { label: 'Narrative Spine', icon: FileText, placeholder: 'Narrative spine title...' },
   note: { label: 'Note', icon: StickyNote, placeholder: 'Note title...' },
 };
 

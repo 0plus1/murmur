@@ -48,6 +48,7 @@ INSTRUCTIONS:
 - Improve prose clarity, subtext, and sensory detail where appropriate
 - Keep unmarked parts aligned with the existing voice unless a comment implies broader changes
 - Return only the rewritten draft unless the prompt explicitly asks for notes
+- Return in markdown format, preserving any existing markdown syntax
 
 DRAFT + COMMENTS MAP:
 {context}
@@ -190,11 +191,11 @@ export function PromptStudio() {
   const [selectedEntities, setSelectedEntities] = useState([]);
   const [masterPrompt, setMasterPrompt] = useState(PROMPT_TEMPLATES.draft_scene.template);
   const [copied, setCopied] = useState(false);
-  
+
   const currentDocument = useEditorStore((state) => state.currentDocument);
   const comments = useEditorStore((state) => state.comments);
   const documents = useProjectStore((state) => state.documents);
-  
+
   // Find previous document (by order in same type)
   const previousDoc = useMemo(() => {
     if (!currentDocument) return null;
@@ -204,22 +205,22 @@ export function PromptStudio() {
     const currentIndex = sameTypeDocs.findIndex((d) => d.id === currentDocument.id);
     return currentIndex > 0 ? sameTypeDocs[currentIndex - 1] : null;
   }, [currentDocument, documents]);
-  
+
   // Find referenced entities from wikilinks in current doc
   const referencedEntities = useMemo(() => {
     if (!currentDocument) return [];
     const links = extractWikilinks(currentDocument.markdown);
     const linkNames = links.map((l) => l.text.toLowerCase());
-    
-    return documents.filter((d) => 
-      ['character', 'location', 'theme'].includes(d.type) &&
+
+    return documents.filter((d) =>
+      ['character', 'location', 'theme', 'narrative_spine'].includes(d.type) &&
       linkNames.includes(d.title.toLowerCase())
     );
   }, [currentDocument, documents]);
-  
+
   // All bible entities for selection
   const allEntities = useMemo(() => {
-    return documents.filter((d) => ['character', 'location', 'theme'].includes(d.type));
+    return documents.filter((d) => ['character', 'location', 'theme', 'narrative_spine'].includes(d.type));
   }, [documents]);
 
   useEffect(() => {
@@ -227,35 +228,35 @@ export function PromptStudio() {
     setMasterPrompt(template?.template || '');
     setCopied(false);
   }, [selectedTemplate]);
-  
+
   // Toggle entity selection
   const toggleEntity = (docId) => {
-    setSelectedEntities((prev) => 
-      prev.includes(docId) 
+    setSelectedEntities((prev) =>
+      prev.includes(docId)
         ? prev.filter((id) => id !== docId)
         : [...prev, docId]
     );
   };
-  
+
   // Generate the final prompt
   const generatedPrompt = useMemo(() => {
     const template = PROMPT_TEMPLATES[selectedTemplate];
     if (!template) return '';
-    
+
     const contextParts = [];
-    
+
     if (includeCurrentDoc && currentDocument) {
       const content = selectedTemplate === 'rewrite_constraint'
         ? renderDocumentWithInlineComments(currentDocument.markdown, comments)
         : parseFrontmatter(currentDocument.markdown).value.content;
       contextParts.push(`## Current Document: ${currentDocument.title}\n\n${content}`);
     }
-    
+
     if (includePreviousDoc && previousDoc) {
       const { content } = parseFrontmatter(previousDoc.markdown).value;
       contextParts.push(`## Previous Document: ${previousDoc.title}\n\n${content}`);
     }
-    
+
     // Add selected entities
     for (const entityId of selectedEntities) {
       const entity = documents.find((d) => d.id === entityId);
@@ -264,7 +265,7 @@ export function PromptStudio() {
         contextParts.push(`## ${entity.type}: ${entity.title}\n\n${content}`);
       }
     }
-    
+
     const context = contextParts.join('\n\n---\n\n');
     const contextValue = context || '[No context selected]';
     const promptSource = masterPrompt || template.template;
@@ -275,17 +276,17 @@ export function PromptStudio() {
 
     return `${promptSource.trim()}\n\nCONTEXT:\n${contextValue}`;
   }, [
-    selectedTemplate, 
-    includeCurrentDoc, 
-    includePreviousDoc, 
-    selectedEntities, 
+    selectedTemplate,
+    includeCurrentDoc,
+    includePreviousDoc,
+    selectedEntities,
     masterPrompt,
-    currentDocument, 
+    currentDocument,
     comments,
-    previousDoc, 
+    previousDoc,
     documents
   ]);
-  
+
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(generatedPrompt);
@@ -296,7 +297,7 @@ export function PromptStudio() {
       toast.error('Failed to copy prompt');
     }
   };
-  
+
   return (
     <div className="h-full flex flex-col" data-testid="prompt-studio">
       <div className="p-4 border-b">
@@ -304,7 +305,7 @@ export function PromptStudio() {
           <Wand2 className="h-4 w-4 text-primary" />
           <h3 className="text-sm font-semibold">Prompt Studio</h3>
         </div>
-        
+
         <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
           <SelectTrigger className="w-full" data-testid="template-select">
             <SelectValue />
@@ -321,18 +322,18 @@ export function PromptStudio() {
           </SelectContent>
         </Select>
       </div>
-      
+
       <ScrollArea className="flex-1">
         <div className="p-4 space-y-4">
           <div>
             <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
               Include Context
             </h4>
-            
+
             <div className="space-y-2">
               <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="current-doc" 
+                <Checkbox
+                  id="current-doc"
                   checked={includeCurrentDoc}
                   onCheckedChange={setIncludeCurrentDoc}
                   disabled={!currentDocument}
@@ -344,10 +345,10 @@ export function PromptStudio() {
                   )}
                 </Label>
               </div>
-              
+
               <div className="flex items-center space-x-2">
-                <Checkbox 
-                  id="previous-doc" 
+                <Checkbox
+                  id="previous-doc"
                   checked={includePreviousDoc}
                   onCheckedChange={setIncludePreviousDoc}
                   disabled={!previousDoc}
@@ -359,10 +360,10 @@ export function PromptStudio() {
                   )}
                 </Label>
               </div>
-              
+
             </div>
           </div>
-          
+
           {referencedEntities.length > 0 && (
             <div>
               <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
@@ -371,7 +372,7 @@ export function PromptStudio() {
               <div className="space-y-1">
                 {referencedEntities.map((entity) => (
                   <div key={entity.id} className="flex items-center space-x-2">
-                    <Checkbox 
+                    <Checkbox
                       id={`entity-${entity.id}`}
                       checked={selectedEntities.includes(entity.id)}
                       onCheckedChange={() => toggleEntity(entity.id)}
@@ -385,7 +386,7 @@ export function PromptStudio() {
               </div>
             </div>
           )}
-          
+
           <div>
             <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
               Additional Bible Entries
@@ -395,7 +396,7 @@ export function PromptStudio() {
                 .filter((e) => !referencedEntities.find((r) => r.id === e.id))
                 .map((entity) => (
                   <div key={entity.id} className="flex items-center space-x-2">
-                    <Checkbox 
+                    <Checkbox
                       id={`all-entity-${entity.id}`}
                       checked={selectedEntities.includes(entity.id)}
                       onCheckedChange={() => toggleEntity(entity.id)}
@@ -408,7 +409,7 @@ export function PromptStudio() {
                 ))}
             </div>
           </div>
-          
+
           <div>
             <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
               Prompt
@@ -428,7 +429,7 @@ export function PromptStudio() {
             <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
               Generated Prompt
             </h4>
-            <Textarea 
+            <Textarea
               value={generatedPrompt}
               readOnly
               className="min-h-[200px] text-xs font-mono resize-none"
@@ -437,10 +438,10 @@ export function PromptStudio() {
           </div>
         </div>
       </ScrollArea>
-      
+
       <div className="p-4 border-t">
-        <Button 
-          className="w-full" 
+        <Button
+          className="w-full"
           onClick={handleCopy}
           disabled={!generatedPrompt}
           data-testid="copy-prompt-btn"
