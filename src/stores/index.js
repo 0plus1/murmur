@@ -21,7 +21,16 @@ import {
 import { createDocumentMarkdown, countWords, updateTitle as updateTitleMarkdown, updateStatus as updateStatusMarkdown } from '@/lib/markdown';
 import { reindexProject, refactorLinks, getBacklinksForDocument, getLinkableItems } from '@/lib/reindexer';
 import { createSampleProject } from '@/lib/sample';
-import { writeDocumentToDisk, removeDocumentFromDisk, removeProjectFromDisk, renameDocumentOnDisk, syncProjectToDisk, syncAllProjectsToDisk as syncAllProjectsToDiskFromStorage } from '@/lib/storage';
+import {
+  writeDocumentToDisk,
+  removeDocumentFromDisk,
+  removeProjectFromDisk,
+  renameDocumentOnDisk,
+  syncProjectToDisk,
+  syncAllProjectsToDisk as syncAllProjectsToDiskFromStorage,
+  hydrateProjectsFromDisk,
+  hydrateProjectFromDisk,
+} from '@/lib/storage';
 
 // UI Store - for panels, modals, theme
 export const useUIStore = create(
@@ -83,6 +92,7 @@ export const useProjectStore = create((set, get) => ({
     set({ loading: true });
     try {
       console.log('[murmur] Initializing...');
+      await hydrateProjectsFromDisk();
       const projects = await getAllProjects();
       console.log('[murmur] Projects loaded:', projects.length);
       
@@ -119,6 +129,7 @@ export const useProjectStore = create((set, get) => ({
   openProject: async (id) => {
     set({ loading: true });
     try {
+      await hydrateProjectFromDisk(id);
       const project = await db.projects.get(id);
       if (!project) throw new Error('Project not found');
       

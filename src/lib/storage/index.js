@@ -1,7 +1,8 @@
 import { open } from '@tauri-apps/plugin-dialog';
-import { exists, mkdir, remove, rename, writeTextFile } from '@tauri-apps/plugin-fs';
+import { exists, mkdir, readDir, readTextFile, remove, rename, writeTextFile } from '@tauri-apps/plugin-fs';
 import { join } from '@tauri-apps/api/path';
 import { db, getSetting, setSetting } from '@/lib/db';
+import { parseFrontmatter } from '@/lib/markdown';
 import { buildDocumentFilename, buildProjectFolderName } from '@/lib/storage/filenames';
 
 const APP_SETTINGS_ID = 'app';
@@ -78,6 +79,224 @@ export async function ensureProjectStructure(rootPath, project) {
   ]);
 
   return { projectRoot };
+}
+
+function parseProjectId(value) {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    if (Number.isInteger(parsed) && parsed > 0) return parsed;
+  }
+  return null;
+}
+
+function parseProjectIdFromFolderName(folderName) {
+  if (!folderName) return null;
+  const match = String(folderName).match(/-(\d+)$/);
+  return match ? Number(match[1]) : null;
+}
+
+function inferDocTypeFromPath(path) {
+  if (/(^|\/)bible\/characters\//.test(path)) return 'character';
+  if (/(^|\/)bible\/locations\//.test(path)) return 'location';
+  if (/(^|\/)bible\/themes\//.test(path)) return 'theme';
+  if (/(^|\/)bible\/narrative-spine\.md$/.test(path)) return 'narrative_spine';
+  if (/(^|\/)manuscript\/chapters\//.test(path)) return 'chapter';
+  if (/(^|\/)notes\//.test(path)) return 'note';
+  return 'note';
+}
+
+function parseDocIdFromFileName(fileName) {
+  const match = String(fileName).match(/-(\d+)\.md$/);
+  if (!match) return null;
+  const parsed = Number(match[1]);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+async function safeReadProjectMetadata(projectRoot) {
+  const metadataPath = await join(projectRoot, 'project.json');
+  if (!(await exists(metadataPath))) return null;
+
+  try {
+    const raw = await readTextFile(metadataPath);
+    return JSON.parse(raw);
+  } catch (error) {
+    console.warn('[murmur] Failed to read project.json:', metadataPath, error);
+    return null;
+  }
+}
+
+async function collectMarkdownFiles(projectRoot) {
+  const targets = [
+    'manuscript/chapters',
+    'bible/characters',
+    'bible/locations',
+    'bible/themes',
+    'notes',
+  ];
+
+  const files = [];
+
+  for (const relativeDir of targets) {
+    const absoluteDir = await join(projectRoot, relativeDir);
+    if (!(await exists(absoluteDir))) continue;
+
+    const entries = await readDir(absoluteDir);
+    for (const entry of entries) {
+      if (entry?.isDirectory) continue;
+      const name = entry?.name;
+      if (!name || !name.endsWith('.md')) continue;
+      files.push({
+        relativePath: `${relativeDir}/${name}`.replace(/\\/g, '/'),
+        absolutePath: await join(absoluteDir, name),
+        fileName: name,
+      });
+    }
+  }
+
+  const narrativeSpinePath = await join(projectRoot, 'bible', 'narrative-spine.md');
+  if (await exists(narrativeSpinePath)) {
+    files.push({
+      relativePath: 'bible/narrative-spine.md',
+      absolutePath: narrativeSpinePath,
+      fileName: 'narrative-spine.md',
+    });
+  }
+
+  return files;
+}
+
+async function hydrateProjectDocumentsFromDisk(projectId, projectRoot) {
+  const markdownFiles = await collectMarkdownFiles(projectRoot);
+  const existingDocs = await db.documents.where('projectId').equals(projectId).toArray();
+  const existingByFileName = new Map(existingDocs.map((doc) => [doc.fileName, doc]));
+  const existingNarrativeSpine = existingDocs.find((doc) => doc.type === 'narrative_spine');
+  const now = new Date().toISOString();
+
+  const docsToPersist = [];
+  let fallbackOrder = 0;
+
+  for (const file of markdownFiles) {
+    let markdown;
+    try {
+      markdown = await readTextFile(file.absolutePath);
+    } catch (error) {
+      console.warn('[murmur] Failed reading markdown file:', file.absolutePath, error);
+      continue;
+    }
+
+    const parsed = parseFrontmatter(markdown).value;
+    const fm = parsed.frontmatter || {};
+    const inferredType = inferDocTypeFromPath(file.relativePath);
+    const type = typeof fm.type === 'string' ? fm.type : inferredType;
+    const titleFromFrontmatter = typeof fm.title === 'string' && fm.title.trim() ? fm.title.trim() : null;
+    const titleFromFile = file.fileName.replace(/\.md$/, '');
+    const status = typeof fm.status === 'string' ? fm.status : 'draft';
+    const order = Number.isFinite(fm.order) ? Number(fm.order) : fallbackOrder++;
+    const updatedAt = typeof fm.updated_at === 'string' ? fm.updated_at : now;
+
+    const idFromName = parseDocIdFromFileName(file.fileName);
+    const existingByName = existingByFileName.get(file.fileName);
+    const resolvedId = idFromName
+      ?? existingByName?.id
+      ?? (type === 'narrative_spine' ? existingNarrativeSpine?.id : null);
+
+    const record = {
+      projectId,
+      type,
+      title: titleFromFrontmatter || titleFromFile,
+      status,
+      order,
+      markdown,
+      updatedAt,
+      fileName: file.fileName,
+    };
+
+    if (resolvedId) {
+      record.id = resolvedId;
+    }
+
+    docsToPersist.push(record);
+  }
+
+  await db.transaction('rw', [db.documents, db.links, db.entities], async () => {
+    await db.documents.where('projectId').equals(projectId).delete();
+    await db.links.where('projectId').equals(projectId).delete();
+    await db.entities.where('projectId').equals(projectId).delete();
+    if (docsToPersist.length > 0) {
+      await db.documents.bulkAdd(docsToPersist);
+    }
+  });
+}
+
+async function upsertProjectFromDiskFolder(rootPath, folderName) {
+  const projectRoot = await join(rootPath, folderName);
+  const metadata = await safeReadProjectMetadata(projectRoot);
+  if (!metadata) return null;
+
+  const projectId = parseProjectId(metadata.id) ?? parseProjectIdFromFolderName(folderName);
+  if (!projectId) {
+    console.warn('[murmur] Skipping project folder without numeric id:', folderName);
+    return null;
+  }
+
+  const now = new Date().toISOString();
+  const projectRecord = {
+    id: projectId,
+    name: typeof metadata.name === 'string' && metadata.name.trim() ? metadata.name.trim() : folderName,
+    createdAt: typeof metadata.createdAt === 'string' ? metadata.createdAt : now,
+    updatedAt: typeof metadata.updatedAt === 'string' ? metadata.updatedAt : now,
+  };
+
+  await db.projects.put(projectRecord);
+  await hydrateProjectDocumentsFromDisk(projectId, projectRoot);
+  return projectId;
+}
+
+export async function hydrateProjectsFromDisk() {
+  const rootPath = await getStoragePath();
+  if (!rootPath || !(await exists(rootPath))) return { projectsHydrated: 0 };
+
+  const entries = await readDir(rootPath);
+  let projectsHydrated = 0;
+
+  for (const entry of entries) {
+    if (!entry?.isDirectory || !entry?.name) continue;
+    const hydratedId = await upsertProjectFromDiskFolder(rootPath, entry.name);
+    if (hydratedId) {
+      projectsHydrated += 1;
+    }
+  }
+
+  return { projectsHydrated };
+}
+
+export async function hydrateProjectFromDisk(projectId) {
+  const rootPath = await getStoragePath();
+  if (!rootPath || !(await exists(rootPath))) return false;
+
+  const project = await db.projects.get(projectId);
+  if (!project) return false;
+
+  const preferredRoot = await getProjectRootPath(rootPath, project);
+  if (await exists(preferredRoot)) {
+    await hydrateProjectDocumentsFromDisk(projectId, preferredRoot);
+    return true;
+  }
+
+  const entries = await readDir(rootPath);
+  for (const entry of entries) {
+    if (!entry?.isDirectory || !entry?.name) continue;
+    const candidateRoot = await join(rootPath, entry.name);
+    const metadata = await safeReadProjectMetadata(candidateRoot);
+    if (!metadata) continue;
+    const candidateId = parseProjectId(metadata.id) ?? parseProjectIdFromFolderName(entry.name);
+    if (candidateId !== projectId) continue;
+    await hydrateProjectDocumentsFromDisk(projectId, candidateRoot);
+    return true;
+  }
+
+  return false;
 }
 
 export async function ensureDocumentFileName(doc) {
