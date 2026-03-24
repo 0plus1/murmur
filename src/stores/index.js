@@ -238,6 +238,7 @@ export const useEditorStore = create((set, get) => ({
   backlinks: [],
   comments: [],
   commentDraft: null,
+  activeCommentId: null,
   linkableItems: [],
   searchResults: [],
   searchQuery: '',
@@ -247,7 +248,7 @@ export const useEditorStore = create((set, get) => ({
     const doc = await db.documents.get(id);
     if (!doc) return;
     
-    set({ currentDocument: doc, isDirty: false, commentDraft: null, comments: [] });
+    set({ currentDocument: doc, isDirty: false, commentDraft: null, comments: [], activeCommentId: null });
     
     const [backlinks, items, comments] = await Promise.all([
       getBacklinksForDocument(id),
@@ -418,7 +419,7 @@ export const useEditorStore = create((set, get) => ({
     
     // Clear current document if deleted
     if (get().currentDocument?.id === id) {
-      set({ currentDocument: null, backlinks: [], comments: [], commentDraft: null });
+      set({ currentDocument: null, backlinks: [], comments: [], commentDraft: null, activeCommentId: null });
     }
   },
 
@@ -456,6 +457,8 @@ export const useEditorStore = create((set, get) => ({
 
   cancelCommentDraft: () => set({ commentDraft: null }),
 
+  setActiveComment: (commentId) => set({ activeCommentId: commentId ?? null }),
+
   saveCommentDraft: async () => {
     const currentDocument = get().currentDocument;
     const draft = get().commentDraft;
@@ -475,7 +478,7 @@ export const useEditorStore = create((set, get) => ({
     });
 
     const comments = await getDocumentCommentsFromDb(currentDocument.id);
-    set({ comments, commentDraft: null });
+    set({ comments, commentDraft: null, activeCommentId: null });
     return true;
   },
 
@@ -486,7 +489,10 @@ export const useEditorStore = create((set, get) => ({
     if (!currentDocument) return;
 
     const comments = await getDocumentCommentsFromDb(currentDocument.id);
-    set({ comments });
+    set((state) => ({
+      comments,
+      activeCommentId: state.activeCommentId === commentId ? null : state.activeCommentId,
+    }));
   },
   
   // Duplicate document

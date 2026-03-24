@@ -284,7 +284,7 @@ function createFrontmatterHider() {
   });
 }
 
-function createCommentHighlighter(comments, commentDraft) {
+function createCommentHighlighter(comments, commentDraft, onCommentClick) {
   return ViewPlugin.fromClass(class {
     decorations;
 
@@ -350,6 +350,27 @@ function createCommentHighlighter(comments, commentDraft) {
     }
   }, {
     decorations: (v) => v.decorations,
+    eventHandlers: {
+      click: (event, view) => {
+        if (!Array.isArray(comments) || comments.length === 0) return false;
+
+        const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+        if (pos === null) return false;
+
+        const matchingComment = comments.find((comment) => {
+          const from = Number.isInteger(comment?.selectionFrom) ? comment.selectionFrom : null;
+          const to = Number.isInteger(comment?.selectionTo) ? comment.selectionTo : null;
+          if (from === null || to === null) return false;
+          return pos >= from && pos <= to;
+        });
+
+        if (!matchingComment) return false;
+
+        event.preventDefault();
+        onCommentClick?.(matchingComment);
+        return true;
+      }
+    }
   });
 }
 
@@ -573,6 +594,7 @@ export const MarkdownEditor = forwardRef(function MarkdownEditor({
   showFrontmatter = false,
   onEntityClick,
   onRequestAddComment,
+  onCommentClick,
 }, ref) {
   const editorRef = useRef(null);
   const viewRef = useRef(null);
@@ -708,7 +730,7 @@ export const MarkdownEditor = forwardRef(function MarkdownEditor({
       ? createEntityMatcher(entities, handleEntityClick)
       : [];
     const commentPlugin = (comments.length > 0 || commentDraft)
-      ? createCommentHighlighter(comments, commentDraft)
+      ? createCommentHighlighter(comments, commentDraft, onCommentClick)
       : [];
     const frontmatterPlugin = showFrontmatter ? [] : createFrontmatterHider();
     
@@ -748,7 +770,7 @@ export const MarkdownEditor = forwardRef(function MarkdownEditor({
       viewRef.current?.destroy();
       viewRef.current = null;
     };
-  }, [distractionFree]);
+  }, [distractionFree, onCommentClick]);
   
   // Update content when value prop changes
   useEffect(() => {
@@ -789,13 +811,13 @@ export const MarkdownEditor = forwardRef(function MarkdownEditor({
     if (!viewRef.current || distractionFree) return;
 
     const commentPlugin = (comments.length > 0 || commentDraft)
-      ? createCommentHighlighter(comments, commentDraft)
+      ? createCommentHighlighter(comments, commentDraft, onCommentClick)
       : [];
 
     viewRef.current.dispatch({
       effects: commentsCompartment.current.reconfigure(commentPlugin),
     });
-  }, [comments, commentDraft, distractionFree]);
+  }, [comments, commentDraft, distractionFree, onCommentClick]);
 
   // Update frontmatter visibility
   useEffect(() => {

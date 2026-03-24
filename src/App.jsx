@@ -153,6 +153,7 @@ function App() {
   const isDirty = useEditorStore((state) => state.isDirty);
   const openDocument = useEditorStore((state) => state.openDocument);
   const beginCommentDraft = useEditorStore((state) => state.beginCommentDraft);
+  const setActiveComment = useEditorStore((state) => state.setActiveComment);
 
   const manuscriptStats = useMemo(() => {
     let totalWords = getManuscriptWordCount(documents);
@@ -444,13 +445,23 @@ function App() {
   const handleSelectComment = useCallback((comment) => {
     if (!currentDocument) return;
 
+    setActiveComment(comment?.id ?? null);
+
     const offset = Number.isInteger(comment?.selectionFrom)
       ? comment.selectionFrom
       : (Number.isInteger(comment?.anchorOffset) ? comment.anchorOffset : null);
 
     if (offset === null) return;
     handleSelectSectionInTree(currentDocument.id, offset);
-  }, [currentDocument, handleSelectSectionInTree]);
+  }, [currentDocument, handleSelectSectionInTree, setActiveComment]);
+
+  const handleCommentHighlightClick = useCallback((comment) => {
+    if (!comment?.id) return;
+
+    setRightPanelCollapsed(false);
+    setRightPanelTab('comments');
+    setActiveComment(comment.id);
+  }, [setActiveComment, setRightPanelCollapsed, setRightPanelTab]);
 
   useEffect(() => {
     if (!pendingSectionJump) return;
@@ -867,6 +878,7 @@ function App() {
                         showFrontmatter={showFrontmatter}
                         onEntityClick={handleEntityClick}
                         onRequestAddComment={handleRequestAddComment}
+                        onCommentClick={handleCommentHighlightClick}
                       />
                     </div>
                   </>

@@ -1,7 +1,7 @@
 /**
  * Comments Panel - local-only document comments stored in IndexedDB
  */
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { MessageSquare, Plus, Trash2, CornerDownRight } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
@@ -71,15 +71,29 @@ export function CommentsPanel({ onSelectComment }) {
   const currentDocument = useEditorStore((state) => state.currentDocument);
   const comments = useEditorStore((state) => state.comments);
   const commentDraft = useEditorStore((state) => state.commentDraft);
+  const activeCommentId = useEditorStore((state) => state.activeCommentId);
   const beginCommentDraft = useEditorStore((state) => state.beginCommentDraft);
   const updateCommentDraftBody = useEditorStore((state) => state.updateCommentDraftBody);
   const cancelCommentDraft = useEditorStore((state) => state.cancelCommentDraft);
   const saveCommentDraft = useEditorStore((state) => state.saveCommentDraft);
   const deleteComment = useEditorStore((state) => state.deleteComment);
+  const setActiveComment = useEditorStore((state) => state.setActiveComment);
+  const commentRefs = useRef(new Map());
 
   const handleStartGeneralComment = () => {
     beginCommentDraft();
   };
+
+  useEffect(() => {
+    if (!activeCommentId) return;
+    const element = commentRefs.current.get(activeCommentId);
+    if (!element) return;
+
+    element.scrollIntoView({
+      block: 'nearest',
+      behavior: 'smooth',
+    });
+  }, [activeCommentId]);
 
   if (!currentDocument) {
     return (
@@ -177,13 +191,26 @@ export function CommentsPanel({ onSelectComment }) {
               {comments.map((comment) => (
                 <div
                   key={comment.id}
-                  className="rounded-lg border bg-card p-3 transition-colors hover:bg-muted/30 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                  ref={(node) => {
+                    if (node) {
+                      commentRefs.current.set(comment.id, node);
+                    } else {
+                      commentRefs.current.delete(comment.id);
+                    }
+                  }}
+                  className={`rounded-lg border bg-card p-3 transition-colors hover:bg-muted/30 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
+                    activeCommentId === comment.id ? 'border-primary bg-primary/10 ring-2 ring-primary ring-offset-2' : ''
+                  }`}
                   role="button"
                   tabIndex={0}
-                  onClick={() => onSelectComment?.(comment)}
+                  onClick={() => {
+                    setActiveComment(comment.id);
+                    onSelectComment?.(comment);
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       e.preventDefault();
+                      setActiveComment(comment.id);
                       onSelectComment?.(comment);
                     }
                   }}
