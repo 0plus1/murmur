@@ -58,6 +58,9 @@ const typeIcons = {
   location: MapPin,
   theme: Sparkles,
   narrative_spine: FileText,
+  style_guide: FileText,
+  story_compass: FileText,
+  emotional_arc: FileText,
   note: FileText,
 };
 
@@ -122,6 +125,10 @@ function getSectionPreview(text, maxLength = 50) {
   return `${text.slice(0, maxLength)}...`;
 }
 
+function isLegacyStyleGuideDoc(doc) {
+  return doc?.type === 'theme' && doc?.title?.toLowerCase().includes('style guide');
+}
+
 function SortableItem({
   doc,
   isActive,
@@ -149,7 +156,7 @@ function SortableItem({
     opacity: isDragging ? 0.5 : 1,
   };
   
-  const Icon = typeIcons[doc.type] || FileText;
+  const Icon = isLegacyStyleGuideDoc(doc) ? FileText : (typeIcons[doc.type] || FileText);
   const chapterSections = useMemo(() => {
     if (!sectionTreeOpen || doc.type !== 'chapter') return [];
     return getChapterSections(doc.markdown || '');
@@ -213,7 +220,7 @@ function SortableItem({
               <Pencil className="h-3 w-3 mr-2" />
               Rename
             </DropdownMenuItem>
-            {doc.type !== 'narrative_spine' && (
+            {!['narrative_spine', 'style_guide', 'story_compass', 'emotional_arc'].includes(doc.type) && !isLegacyStyleGuideDoc(doc) && (
               <DropdownMenuItem onClick={() => onDuplicate(doc.id)}>
                 <Copy className="h-3 w-3 mr-2" />
                 Duplicate
@@ -373,6 +380,9 @@ export function FileTree({ onCreateDocument, onRenameDocument, onSelectSection }
     locations: true,
     themes: true,
     narrativeSpine: true,
+    styleGuide: true,
+    storyCompass: true,
+    emotionalArc: true,
     notes: false,
   });
   const [expandedChapterSectionIds, setExpandedChapterSectionIds] = useState({});
@@ -393,12 +403,27 @@ export function FileTree({ onCreateDocument, onRenameDocument, onSelectSection }
   );
   
   const themeDocs = useMemo(() => 
-    documents.filter((d) => d.type === 'theme').sort((a, b) => a.order - b.order),
+    documents.filter((d) => d.type === 'theme' && !isLegacyStyleGuideDoc(d)).sort((a, b) => a.order - b.order),
     [documents]
   );
 
   const narrativeSpineDocs = useMemo(() =>
     documents.filter((d) => d.type === 'narrative_spine').sort((a, b) => a.order - b.order),
+    [documents]
+  );
+
+  const styleGuideDocs = useMemo(() =>
+    documents.filter((d) => d.type === 'style_guide' || isLegacyStyleGuideDoc(d)).sort((a, b) => a.order - b.order),
+    [documents]
+  );
+
+  const storyCompassDocs = useMemo(() =>
+    documents.filter((d) => d.type === 'story_compass').sort((a, b) => a.order - b.order),
+    [documents]
+  );
+
+  const emotionalArcDocs = useMemo(() =>
+    documents.filter((d) => d.type === 'emotional_arc').sort((a, b) => a.order - b.order),
     [documents]
   );
   
@@ -508,6 +533,63 @@ export function FileTree({ onCreateDocument, onRenameDocument, onSelectSection }
               items={narrativeSpineDocs}
               isOpen={openSections.narrativeSpine}
               onToggle={() => toggleSection('narrativeSpine')}
+              onAdd={handleAdd}
+              allowAdd={false}
+              onSelect={openDocument}
+              currentDocId={currentDocument?.id}
+              onRename={onRenameDocument}
+              onDuplicate={duplicateDocument}
+              onDelete={removeDocument}
+              onStatusChange={updateStatus}
+              onReorder={handleReorder}
+            />
+          )}
+
+          {styleGuideDocs.length > 0 && (
+            <TreeSection
+              title="Style Guide"
+              type="style_guide"
+              items={styleGuideDocs}
+              isOpen={openSections.styleGuide}
+              onToggle={() => toggleSection('styleGuide')}
+              onAdd={handleAdd}
+              allowAdd={false}
+              onSelect={openDocument}
+              currentDocId={currentDocument?.id}
+              onRename={onRenameDocument}
+              onDuplicate={duplicateDocument}
+              onDelete={removeDocument}
+              onStatusChange={updateStatus}
+              onReorder={handleReorder}
+            />
+          )}
+
+          {storyCompassDocs.length > 0 && (
+            <TreeSection
+              title="Story Compass"
+              type="story_compass"
+              items={storyCompassDocs}
+              isOpen={openSections.storyCompass}
+              onToggle={() => toggleSection('storyCompass')}
+              onAdd={handleAdd}
+              allowAdd={false}
+              onSelect={openDocument}
+              currentDocId={currentDocument?.id}
+              onRename={onRenameDocument}
+              onDuplicate={duplicateDocument}
+              onDelete={removeDocument}
+              onStatusChange={updateStatus}
+              onReorder={handleReorder}
+            />
+          )}
+
+          {emotionalArcDocs.length > 0 && (
+            <TreeSection
+              title="Emotional Arc"
+              type="emotional_arc"
+              items={emotionalArcDocs}
+              isOpen={openSections.emotionalArc}
+              onToggle={() => toggleSection('emotionalArc')}
               onAdd={handleAdd}
               allowAdd={false}
               onSelect={openDocument}

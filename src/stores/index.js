@@ -32,6 +32,13 @@ import {
   hydrateProjectFromDisk,
 } from '@/lib/storage';
 
+const SINGLETON_DOCUMENT_TYPES = new Set([
+  'narrative_spine',
+  'style_guide',
+  'story_compass',
+  'emotional_arc',
+]);
+
 // UI Store - for panels, modals, theme
 export const useUIStore = create(
   persist(
@@ -39,7 +46,7 @@ export const useUIStore = create(
       theme: 'dark',
       sidebarCollapsed: false,
       rightPanelCollapsed: false,
-      rightPanelTab: 'backlinks', // backlinks | bible | styleGuide | prompt
+      rightPanelTab: 'backlinks', // backlinks | bible | prompt | comments
       commandPaletteOpen: false,
       promptStudioOpen: false,
       settingsOpen: false,
@@ -296,8 +303,11 @@ export const useEditorStore = create((set, get) => ({
     if (!projectId) return;
     
     const documents = useProjectStore.getState().documents;
-    if (type === 'narrative_spine') {
-      const existing = documents.find((doc) => doc.type === 'narrative_spine');
+    if (SINGLETON_DOCUMENT_TYPES.has(type)) {
+      const existing = documents.find((doc) =>
+        doc.type === type ||
+        (type === 'style_guide' && doc.type === 'theme' && doc.title?.toLowerCase().includes('style guide'))
+      );
       if (existing) {
         await get().openDocument(existing.id);
         return existing.id;
@@ -483,7 +493,7 @@ export const useEditorStore = create((set, get) => ({
   duplicateDocument: async (id) => {
     const doc = await db.documents.get(id);
     if (!doc) return;
-    if (doc.type === 'narrative_spine') return;
+    if (SINGLETON_DOCUMENT_TYPES.has(doc.type)) return;
     
     const newTitle = `${doc.title} (copy)`;
     const markdown = createDocumentMarkdown(doc.type, newTitle);

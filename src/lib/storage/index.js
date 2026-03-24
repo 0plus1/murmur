@@ -42,6 +42,9 @@ export function getFolderForDocType(type) {
     case 'theme':
       return 'bible/themes';
     case 'narrative_spine':
+    case 'style_guide':
+    case 'story_compass':
+    case 'emotional_arc':
       return 'bible';
     case 'note':
     default:
@@ -101,6 +104,9 @@ function inferDocTypeFromPath(path) {
   if (/(^|\/)bible\/locations\//.test(path)) return 'location';
   if (/(^|\/)bible\/themes\//.test(path)) return 'theme';
   if (/(^|\/)bible\/narrative-spine\.md$/.test(path)) return 'narrative_spine';
+  if (/(^|\/)bible\/style-guide\.md$/.test(path)) return 'style_guide';
+  if (/(^|\/)bible\/story-compass\.md$/.test(path)) return 'story_compass';
+  if (/(^|\/)bible\/emotional-arc\.md$/.test(path)) return 'emotional_arc';
   if (/(^|\/)manuscript\/chapters\//.test(path)) return 'chapter';
   if (/(^|\/)notes\//.test(path)) return 'note';
   return 'note';
@@ -163,6 +169,33 @@ async function collectMarkdownFiles(projectRoot) {
     });
   }
 
+  const styleGuidePath = await join(projectRoot, 'bible', 'style-guide.md');
+  if (await exists(styleGuidePath)) {
+    files.push({
+      relativePath: 'bible/style-guide.md',
+      absolutePath: styleGuidePath,
+      fileName: 'style-guide.md',
+    });
+  }
+
+  const storyCompassPath = await join(projectRoot, 'bible', 'story-compass.md');
+  if (await exists(storyCompassPath)) {
+    files.push({
+      relativePath: 'bible/story-compass.md',
+      absolutePath: storyCompassPath,
+      fileName: 'story-compass.md',
+    });
+  }
+
+  const emotionalArcPath = await join(projectRoot, 'bible', 'emotional-arc.md');
+  if (await exists(emotionalArcPath)) {
+    files.push({
+      relativePath: 'bible/emotional-arc.md',
+      absolutePath: emotionalArcPath,
+      fileName: 'emotional-arc.md',
+    });
+  }
+
   return files;
 }
 
@@ -171,10 +204,14 @@ async function hydrateProjectDocumentsFromDisk(projectId, projectRoot) {
   const existingDocs = await db.documents.where('projectId').equals(projectId).toArray();
   const existingByFileName = new Map(existingDocs.map((doc) => [doc.fileName, doc]));
   const existingNarrativeSpine = existingDocs.find((doc) => doc.type === 'narrative_spine');
+  const existingStyleGuide = existingDocs.find((doc) => doc.type === 'style_guide' || (doc.type === 'theme' && doc.title?.toLowerCase().includes('style guide')));
+  const existingStoryCompass = existingDocs.find((doc) => doc.type === 'story_compass');
+  const existingEmotionalArc = existingDocs.find((doc) => doc.type === 'emotional_arc');
   const now = new Date().toISOString();
 
   const docsToPersist = [];
   let fallbackOrder = 0;
+  const hasCanonicalStyleGuideFile = markdownFiles.some((file) => file.fileName === 'style-guide.md');
 
   for (const file of markdownFiles) {
     let markdown;
@@ -187,9 +224,15 @@ async function hydrateProjectDocumentsFromDisk(projectId, projectRoot) {
 
     const parsed = parseFrontmatter(markdown).value;
     const fm = parsed.frontmatter || {};
-    const inferredType = inferDocTypeFromPath(file.relativePath);
-    const type = typeof fm.type === 'string' ? fm.type : inferredType;
     const titleFromFrontmatter = typeof fm.title === 'string' && fm.title.trim() ? fm.title.trim() : null;
+    const inferredType = inferDocTypeFromPath(file.relativePath);
+    let type = typeof fm.type === 'string' ? fm.type : inferredType;
+    if (type === 'theme' && titleFromFrontmatter?.toLowerCase().includes('style guide')) {
+      type = 'style_guide';
+    }
+    if (type === 'style_guide' && file.fileName !== 'style-guide.md' && hasCanonicalStyleGuideFile) {
+      continue;
+    }
     const titleFromFile = file.fileName.replace(/\.md$/, '');
     const status = typeof fm.status === 'string' ? fm.status : 'draft';
     const order = Number.isFinite(fm.order) ? Number(fm.order) : fallbackOrder++;
@@ -199,7 +242,10 @@ async function hydrateProjectDocumentsFromDisk(projectId, projectRoot) {
     const existingByName = existingByFileName.get(file.fileName);
     const resolvedId = idFromName
       ?? existingByName?.id
-      ?? (type === 'narrative_spine' ? existingNarrativeSpine?.id : null);
+      ?? (type === 'narrative_spine' ? existingNarrativeSpine?.id : null)
+      ?? (type === 'style_guide' ? existingStyleGuide?.id : null)
+      ?? (type === 'story_compass' ? existingStoryCompass?.id : null)
+      ?? (type === 'emotional_arc' ? existingEmotionalArc?.id : null);
 
     const record = {
       projectId,

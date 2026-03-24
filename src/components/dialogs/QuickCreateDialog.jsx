@@ -21,6 +21,9 @@ const typeConfig = {
   location: { label: 'Location', icon: MapPin, placeholder: 'Location name...' },
   theme: { label: 'Theme', icon: Sparkles, placeholder: 'Theme title...' },
   narrative_spine: { label: 'Narrative Spine', icon: FileText, placeholder: 'Narrative spine title...' },
+  style_guide: { label: 'Style Guide', icon: FileText, placeholder: 'Style guide title...' },
+  story_compass: { label: 'Story Compass', icon: FileText, placeholder: 'Story compass title...' },
+  emotional_arc: { label: 'Emotional Arc', icon: FileText, placeholder: 'Emotional arc title...' },
   note: { label: 'Note', icon: StickyNote, placeholder: 'Note title...' },
 };
 

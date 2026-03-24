@@ -34,8 +34,15 @@ const typeIcons = {
   location: MapPin,
   theme: Sparkles,
   narrative_spine: FileText,
+  style_guide: FileText,
+  story_compass: FileText,
+  emotional_arc: FileText,
   note: FileText,
 };
+
+function isLegacyStyleGuideDoc(doc) {
+  return doc?.type === 'theme' && doc?.title?.toLowerCase().includes('style guide');
+}
 
 export function CommandPalette({ onCreateDocument, onExport, onSettings }) {
   const open = useUIStore((state) => state.commandPaletteOpen);
@@ -90,6 +97,9 @@ export function CommandPalette({ onCreateDocument, onExport, onSettings }) {
       locations: [],
       themes: [],
       narrativeSpine: [],
+      styleGuide: [],
+      storyCompass: [],
+      emotionalArc: [],
       notes: [],
     };
     
@@ -102,10 +112,18 @@ export function CommandPalette({ onCreateDocument, onExport, onSettings }) {
         groups.characters.push(doc);
       } else if (doc.type === 'location') {
         groups.locations.push(doc);
-      } else if (doc.type === 'theme') {
+      } else if (doc.type === 'theme' && !isLegacyStyleGuideDoc(doc)) {
         groups.themes.push(doc);
+      } else if (isLegacyStyleGuideDoc(doc)) {
+        groups.styleGuide.push(doc);
       } else if (doc.type === 'narrative_spine') {
         groups.narrativeSpine.push(doc);
+      } else if (doc.type === 'style_guide') {
+        groups.styleGuide.push(doc);
+      } else if (doc.type === 'story_compass') {
+        groups.storyCompass.push(doc);
+      } else if (doc.type === 'emotional_arc') {
+        groups.emotionalArc.push(doc);
       } else if (doc.type === 'note') {
         groups.notes.push(doc);
       }
@@ -243,6 +261,51 @@ export function CommandPalette({ onCreateDocument, onExport, onSettings }) {
         {groupedDocs.narrativeSpine.length > 0 && (
           <CommandGroup heading="Narrative Spine">
             {groupedDocs.narrativeSpine.map((doc) => (
+              <CommandItem
+                key={doc.id}
+                onSelect={() => handleSelect(doc.id)}
+                data-testid={`cmd-doc-${doc.id}`}
+              >
+                <FileText className="h-4 w-4 mr-2 text-muted-foreground" />
+                <span className="truncate">{doc.title}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+
+        {groupedDocs.styleGuide.length > 0 && (
+          <CommandGroup heading="Style Guide">
+            {groupedDocs.styleGuide.map((doc) => (
+              <CommandItem
+                key={doc.id}
+                onSelect={() => handleSelect(doc.id)}
+                data-testid={`cmd-doc-${doc.id}`}
+              >
+                <FileText className="h-4 w-4 mr-2 text-muted-foreground" />
+                <span className="truncate">{doc.title}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+
+        {groupedDocs.storyCompass.length > 0 && (
+          <CommandGroup heading="Story Compass">
+            {groupedDocs.storyCompass.map((doc) => (
+              <CommandItem
+                key={doc.id}
+                onSelect={() => handleSelect(doc.id)}
+                data-testid={`cmd-doc-${doc.id}`}
+              >
+                <FileText className="h-4 w-4 mr-2 text-muted-foreground" />
+                <span className="truncate">{doc.title}</span>
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+
+        {groupedDocs.emotionalArc.length > 0 && (
+          <CommandGroup heading="Emotional Arc">
+            {groupedDocs.emotionalArc.map((doc) => (
               <CommandItem
                 key={doc.id}
                 onSelect={() => handleSelect(doc.id)}

@@ -4,7 +4,18 @@
 import { z } from 'zod';
 
 // Document types
-export const DocumentType = z.enum(['chapter', 'scene', 'character', 'location', 'theme', 'narrative_spine', 'note']);
+export const DocumentType = z.enum([
+  'chapter',
+  'scene',
+  'character',
+  'location',
+  'theme',
+  'narrative_spine',
+  'style_guide',
+  'story_compass',
+  'emotional_arc',
+  'note',
+]);
 
 // Document status
 export const DocumentStatus = z.enum(['draft', 'revised', 'final']);

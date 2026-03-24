@@ -213,14 +213,14 @@ export function PromptStudio() {
     const linkNames = links.map((l) => l.text.toLowerCase());
 
     return documents.filter((d) =>
-      ['character', 'location', 'theme', 'narrative_spine'].includes(d.type) &&
+      ['character', 'location', 'theme', 'narrative_spine', 'style_guide', 'story_compass', 'emotional_arc'].includes(d.type) &&
       linkNames.includes(d.title.toLowerCase())
     );
   }, [currentDocument, documents]);
 
   // All bible entities for selection
   const allEntities = useMemo(() => {
-    return documents.filter((d) => ['character', 'location', 'theme', 'narrative_spine'].includes(d.type));
+    return documents.filter((d) => ['character', 'location', 'theme', 'narrative_spine', 'style_guide', 'story_compass', 'emotional_arc'].includes(d.type));
   }, [documents]);
 
   useEffect(() => {

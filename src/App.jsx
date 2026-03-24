@@ -55,7 +55,6 @@ import { FileTree } from '@/components/sidebar/FileTree';
 import { BacklinksPanel } from '@/components/panels/BacklinksPanel';
 import { BiblePanel } from '@/components/panels/BiblePanel';
 import { PromptStudio } from '@/components/panels/PromptStudio';
-import { StyleGuidePanel } from '@/components/panels/StyleGuidePanel';
 import { CommentsPanel } from '@/components/panels/CommentsPanel';
 import { CommandPalette } from '@/components/dialogs/CommandPalette';
 import { ExportModal } from '@/components/dialogs/ExportModal';
@@ -915,14 +914,6 @@ function App() {
                           Bible
                         </TabsTrigger>
                         <TabsTrigger 
-                          value="styleGuide"
-                          className="text-xs data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none"
-                          data-testid="right-panel-style-guide-tab"
-                        >
-                          <BookOpen className="h-3 w-3 mr-1" />
-                          Style Guide
-                        </TabsTrigger>
-                        <TabsTrigger 
                           value="prompt"
                           className="text-xs data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none"
                         >
@@ -944,10 +935,6 @@ function App() {
                           editorRef={editorApiRef}
                           onRequestCreate={handleOpenFullCreateDialog}
                         />
-                      </TabsContent>
-                      
-                      <TabsContent value="styleGuide" className="flex-1 min-h-0 overflow-hidden mt-0 p-0">
-                        <StyleGuidePanel />
                       </TabsContent>
                       
                       <TabsContent value="prompt" className="flex-1 min-h-0 overflow-hidden mt-0 p-0">

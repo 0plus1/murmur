@@ -49,6 +49,15 @@ export async function exportProjectAsZip(projectId) {
       case 'narrative_spine':
         bibleFolder.file('narrative-spine.md', markdown);
         break;
+      case 'style_guide':
+        bibleFolder.file('style-guide.md', markdown);
+        break;
+      case 'story_compass':
+        bibleFolder.file('story-compass.md', markdown);
+        break;
+      case 'emotional_arc':
+        bibleFolder.file('emotional-arc.md', markdown);
+        break;
       case 'note':
         notesFolder.file(filename, markdown);
         break;
@@ -133,15 +142,21 @@ export async function importProjectFromZip(file, projectName) {
     else if (path.includes('locations/')) type = 'location';
     else if (path.includes('themes/')) type = 'theme';
     else if (/(^|\/)bible\/narrative-spine\.md$/i.test(path)) type = 'narrative_spine';
+    else if (/(^|\/)bible\/style-guide\.md$/i.test(path)) type = 'style_guide';
+    else if (/(^|\/)bible\/story-compass\.md$/i.test(path)) type = 'story_compass';
+    else if (/(^|\/)bible\/emotional-arc\.md$/i.test(path)) type = 'emotional_arc';
     else if (path.includes('manuscript/') || path.includes('chapters/')) type = 'chapter';
     
     // Get title from frontmatter or filename
     const filename = path.split('/').pop().replace('.md', '');
     const title = frontmatter.title || filename;
+    const normalizedType = frontmatter.type === 'theme' && String(title).toLowerCase().includes('style guide')
+      ? 'style_guide'
+      : (frontmatter.type || type);
     
     await db.documents.add({
       projectId,
-      type: frontmatter.type || type,
+      type: normalizedType,
       title,
       status: frontmatter.status || 'draft',
       order: frontmatter.order ?? order++,

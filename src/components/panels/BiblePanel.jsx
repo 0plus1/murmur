@@ -13,25 +13,28 @@ const entityTypes = [
   { type: 'location', label: 'Locations', icon: MapPin, createLabel: 'location' },
   { type: 'scene', label: 'Scenes', icon: FileText, createLabel: 'scene' },
   { type: 'theme', label: 'Themes', icon: Sparkles, createLabel: 'theme' },
-  { type: 'narrative_spine', label: 'Narrative Spine', icon: FileText, createLabel: 'narrative spine', singleton: true },
+  { type: 'narrative_spine', label: 'Narrative Spine', icon: FileText, createLabel: 'narrative spine', singleton: true, defaultTitle: 'Narrative Spine' },
+  { type: 'style_guide', label: 'Style Guide', icon: FileText, createLabel: 'style guide', singleton: true, defaultTitle: 'Style Guide' },
+  { type: 'story_compass', label: 'Story Compass', icon: FileText, createLabel: 'story compass', singleton: true, defaultTitle: 'Story Compass' },
+  { type: 'emotional_arc', label: 'Emotional Arc', icon: FileText, createLabel: 'emotional arc', singleton: true, defaultTitle: 'Emotional Arc' },
 ];
 
 export function BiblePanel({ editorRef, onRequestCreate }) {
   const documents = useProjectStore((state) => state.documents);
   const openDocument = useEditorStore((state) => state.openDocument);
-  
-  const isStyleGuideDoc = (doc) => (
-    doc.type === 'theme' &&
-    doc.title.toLowerCase().includes('style guide')
-  );
+  const createDocument = useEditorStore((state) => state.createDocument);
+  const isLegacyStyleGuideDoc = (doc) => doc.type === 'theme' && doc.title.toLowerCase().includes('style guide');
   
   const entities = useMemo(() => {
     return {
       character: documents.filter((d) => d.type === 'character'),
       location: documents.filter((d) => d.type === 'location'),
       scene: documents.filter((d) => d.type === 'scene'),
-      theme: documents.filter((d) => d.type === 'theme' && !isStyleGuideDoc(d)),
+      theme: documents.filter((d) => d.type === 'theme' && !isLegacyStyleGuideDoc(d)),
       narrative_spine: documents.filter((d) => d.type === 'narrative_spine'),
+      style_guide: documents.filter((d) => d.type === 'style_guide' || isLegacyStyleGuideDoc(d)),
+      story_compass: documents.filter((d) => d.type === 'story_compass'),
+      emotional_arc: documents.filter((d) => d.type === 'emotional_arc'),
     };
   }, [documents]);
   
@@ -42,7 +45,11 @@ export function BiblePanel({ editorRef, onRequestCreate }) {
     }
   };
   
-  const handleCreate = (type) => {
+  const handleCreate = async (type, defaultTitle, singleton) => {
+    if (singleton) {
+      await createDocument(type, defaultTitle);
+      return;
+    }
     if (onRequestCreate) {
       onRequestCreate(type);
     }
@@ -51,7 +58,7 @@ export function BiblePanel({ editorRef, onRequestCreate }) {
   return (
     <div className="h-full flex flex-col" data-testid="bible-panel">
       <Tabs defaultValue="character" className="flex-1 flex flex-col">
-        <TabsList className="w-full justify-start rounded-none border-b bg-transparent px-4">
+        <TabsList className="h-auto w-full flex-wrap justify-start rounded-none border-b bg-transparent px-4 py-2">
           {entityTypes.map(({ type, label, icon: Icon }) => (
             <TabsTrigger 
               key={type} 
@@ -65,7 +72,7 @@ export function BiblePanel({ editorRef, onRequestCreate }) {
           ))}
         </TabsList>
         
-        {entityTypes.map(({ type, label, createLabel, singleton }) => (
+        {entityTypes.map(({ type, label, createLabel, singleton, defaultTitle }) => (
           <TabsContent key={type} value={type} className="flex-1 mt-0 p-0">
             <ScrollArea className="h-full">
               <div className="p-4 space-y-1">
@@ -114,7 +121,7 @@ export function BiblePanel({ editorRef, onRequestCreate }) {
                     variant="ghost"
                     size="sm"
                     className="w-full justify-start text-muted-foreground mt-2"
-                    onClick={() => handleCreate(type)}
+                    onClick={() => handleCreate(type, defaultTitle, singleton)}
                     data-testid={`create-${type}-btn`}
                   >
                     <Plus className="h-3 w-3 mr-2" />

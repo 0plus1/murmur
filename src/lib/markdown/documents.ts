@@ -27,14 +27,19 @@ export function createDocumentMarkdown(type: string, title: string, status = 'dr
       content = `# ${title}\n\n## Overview\n\nBrief description of the location.\n\n## Atmosphere\n\n\n## Key Features\n\n\n## History\n\n`;
       break;
     case 'theme':
-      if (title.toLowerCase().includes('style guide')) {
-        content = `# ${title}\n\n## Voice and Tone\n\nVoice and tone for the story.\n\n## Pacing\n\n\n## World Rules\n\n\n## Things to Avoid\n\n\n## Reference Works\n\n`;
-      } else {
-        content = `# ${title}\n\n## Description\n\nExplain the theme and its significance to the story.\n\n## Key Scenes\n\n\n## Character Connections\n\n`;
-      }
+      content = `# ${title}\n\n## Description\n\nExplain the theme and its significance to the story.\n\n## Key Scenes\n\n\n## Character Connections\n\n`;
       break;
     case 'narrative_spine':
       content = `# ${title}\n\n## Core Premise\n\nSummarize the core premise in one clear paragraph.\n\n## Throughline\n\nDescribe the narrative throughline across beginning, middle, and end.\n\n## Act Beats\n\n### Act I\n\n\n### Act II\n\n\n### Act III\n\n\n## Emotional Arc\n\nTrack the emotional movement of the story.\n\n## Stakes and Consequences\n\nClarify what is at risk and how stakes escalate.\n\n`;
+      break;
+    case 'style_guide':
+      content = `# ${title}\n\n## Voice and Tone\n\nDefine the voice and tonal range for the manuscript.\n\n## Pacing\n\nDescribe pacing expectations scene to scene.\n\n## World Rules\n\nList the narrative and worldbuilding rules that must stay consistent.\n\n## Things to Avoid\n\nNote cliches, habits, or tonal moves to avoid.\n\n## Reference Works\n\nCapture useful comparison points or touchstones.\n\n`;
+      break;
+    case 'story_compass':
+      content = `# ${title}\n\n## North Star\n\nState the clearest expression of what this story is trying to do.\n\n## Promise to the Reader\n\nWhat emotional or narrative promise should every chapter keep serving?\n\n## Core Questions\n\nWhat central questions drive the story forward?\n\n## Boundaries\n\nWhat should this story avoid becoming?\n\n## Success Criteria\n\nHow will you know this draft is aligned with the intended story?\n\n`;
+      break;
+    case 'emotional_arc':
+      content = `# ${title}\n\n## Baseline\n\nWhere does the story begin emotionally?\n\n## Escalation\n\nHow should the emotional pressure build across the draft?\n\n## Midpoint Shift\n\nDescribe the central emotional turn.\n\n## Late-Stage Fracture\n\nWhat breaks, deepens, or clarifies near the end?\n\n## Final Emotional State\n\nWhere should the story leave the reader and the main characters emotionally?\n\n`;
       break;
     case 'note':
       content = `# ${title}\n\nYour notes here...\n`;

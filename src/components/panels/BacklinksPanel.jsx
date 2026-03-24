@@ -15,6 +15,9 @@ const typeIcons = {
   location: MapPin,
   theme: Sparkles,
   narrative_spine: FileText,
+  style_guide: FileText,
+  story_compass: FileText,
+  emotional_arc: FileText,
   note: FileText,
 };
 

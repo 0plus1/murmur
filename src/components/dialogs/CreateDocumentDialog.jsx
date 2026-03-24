@@ -23,6 +23,9 @@ const docTypes = [
   { type: 'location', label: 'Location', icon: MapPin, description: 'Place or setting' },
   { type: 'theme', label: 'Theme', icon: Sparkles, description: 'Theme or style note' },
   { type: 'narrative_spine', label: 'Narrative Spine', icon: FileText, description: 'Story structure and core throughline' },
+  { type: 'style_guide', label: 'Style Guide', icon: FileText, description: 'Voice, tone, and guardrails' },
+  { type: 'story_compass', label: 'Story Compass', icon: FileText, description: 'North star and reader promise' },
+  { type: 'emotional_arc', label: 'Emotional Arc', icon: FileText, description: 'Emotional movement across the draft' },
   { type: 'note', label: 'Note', icon: StickyNote, description: 'General note' },
 ];
 
